@@ -22,9 +22,15 @@ class Renderer:
         self._small_font = self._make_font(max(9, config.display.font_size - 4))
         self._title_font = self._make_font(min(36, config.display.font_size + 12), bold=True)
         self._star_items: dict[int, int] = {}
+        self._star_visuals: dict[int, tuple[str, str]] = {}
         self._asteroid_items: dict[int, int] = {}
+        self._asteroid_visuals: dict[int, tuple[str, str]] = {}
         self._buttons: list[tuple[tuple[float, float, float, float], str]] = []
         self._overlay_key: tuple | None = None
+        self._rocket_visual: tuple | None = None
+        self._hud_visual: tuple[str, str, str] | None = None
+        self._explosion_visual: tuple | None = None
+        self._layer_order_dirty = True
         self._rocket_shadow = canvas.create_text(0, 0, anchor="nw", tags=("game", "rocket-shadow"))
         self._rocket_item = canvas.create_text(0, 0, anchor="nw", tags=("game", "rocket"))
         self._hud_left = canvas.create_text(18, 16, anchor="nw", tags=("hud",))
@@ -62,16 +68,30 @@ class Renderer:
         self._title_font.configure(family=family, size=min(36, config.display.font_size + 12))
         self.canvas.configure(background=self.theme.background, highlightthickness=0)
         self.canvas.itemconfigure(self._rocket_item, font=self._font, fill=self.theme.primary)
-        self.canvas.itemconfigure(self._rocket_shadow, font=self._font, fill=self.theme.accent)
+        self.canvas.itemconfigure(
+            self._rocket_shadow,
+            font=self._font,
+            fill=self.theme.muted,
+            stipple="gray50",
+        )
         for item in (self._hud_left, self._hud_right, self._fps_item):
             self.canvas.itemconfigure(item, font=self._small_font, fill=self.theme.accent)
         self.canvas.itemconfigure(self._explosion_item, font=self._title_font, fill=self.theme.hazard)
         self._overlay_key = None
+        self._rocket_visual = None
+        self._hud_visual = None
+        self._explosion_visual = None
+        self._star_visuals.clear()
+        self._asteroid_visuals.clear()
         self._rebuild_decorations()
 
     def resize(self, width: int, height: int) -> None:
-        self.width = max(320, width)
-        self.height = max(240, height)
+        resized_width = max(320, width)
+        resized_height = max(240, height)
+        if (resized_width, resized_height) == (self.width, self.height):
+            return
+        self.width = resized_width
+        self.height = resized_height
         self.canvas.coords(self._hud_right, self.width - 18, 16)
         self._overlay_key = None
         self._rebuild_decorations()
@@ -89,25 +109,27 @@ class Renderer:
         self._sync_stars(snapshot)
         self._sync_rocket(snapshot)
         self._sync_asteroids(snapshot)
-        self.canvas.itemconfigure(
-            self._hud_left,
-            text=f"FLIGHT {snapshot.active_seconds:06.1f}s   LEVEL {snapshot.difficulty_level + 1}",
+        hud_visual = (
+            f"FLIGHT {snapshot.active_seconds:06.1f}s   LEVEL {snapshot.difficulty_level + 1}",
+            f"SCORE {snapshot.score:05d}\nBEST  {snapshot.best_score:05d}",
+            f"FPS {snapshot.fps:4.0f}" if self.show_fps else "",
         )
-        self.canvas.itemconfigure(
-            self._hud_right,
-            text=f"SCORE {snapshot.score:05d}\nBEST  {snapshot.best_score:05d}",
-        )
-        self.canvas.itemconfigure(
-            self._fps_item,
-            text=f"FPS {snapshot.fps:4.0f}" if self.show_fps else "",
-        )
+        if hud_visual != self._hud_visual:
+            self._hud_visual = hud_visual
+            self.canvas.itemconfigure(self._hud_left, text=hud_visual[0])
+            self.canvas.itemconfigure(self._hud_right, text=hud_visual[1])
+            self.canvas.itemconfigure(self._fps_item, text=hud_visual[2])
         self._render_explosion(snapshot)
-        key = (
-            snapshot.state_name,
+        state = GameState[snapshot.state_name]
+        score_key = (
             snapshot.score,
             snapshot.best_score,
             snapshot.show_game_over,
             snapshot.new_best,
+        ) if state is GameState.GAME_OVER else None
+        key = (
+            snapshot.state_name,
+            score_key,
             self.theme.id,
             self.width,
             self.height,
@@ -120,9 +142,11 @@ class Renderer:
         live = {star.id for star in snapshot.stars}
         for star_id in set(self._star_items) - live:
             self.canvas.delete(self._star_items.pop(star_id))
+            self._star_visuals.pop(star_id, None)
         for star in snapshot.stars:
             item = self._star_items.get(star.id)
             color = self.theme.primary if star.intensity > 0.78 else self.theme.accent if star.intensity > 0.55 else self.theme.muted
+            visual = (star.symbol, color)
             if item is None:
                 item = self.canvas.create_text(
                     star.x,
@@ -133,32 +157,43 @@ class Renderer:
                     tags=("star",),
                 )
                 self._star_items[star.id] = item
+                self._star_visuals[star.id] = visual
+                self._layer_order_dirty = True
             else:
                 self.canvas.coords(item, star.x, star.y)
-                self.canvas.itemconfigure(item, text=star.symbol, fill=color, font=self._small_font)
-        self.canvas.tag_lower("star")
-        self.canvas.tag_lower("decor")
+                if self._star_visuals.get(star.id) != visual:
+                    self.canvas.itemconfigure(item, text=star.symbol, fill=color)
+                    self._star_visuals[star.id] = visual
+        if self._layer_order_dirty:
+            self.canvas.tag_lower("star")
+            self.canvas.tag_lower("decor")
+            self._layer_order_dirty = False
 
     def _sync_rocket(self, snapshot: FrameSnapshot) -> None:
         rocket = snapshot.rocket
         hidden = snapshot.state_name == GameState.GAME_OVER.name
         state = "hidden" if hidden else "normal"
         self.canvas.coords(self._rocket_item, rocket.x, rocket.y)
-        self.canvas.itemconfigure(self._rocket_item, text=rocket.text, state=state)
-        self.canvas.coords(self._rocket_shadow, rocket.x + 2, rocket.y + 2)
-        self.canvas.itemconfigure(
-            self._rocket_shadow,
-            text=rocket.text,
-            state=state if self.config.display.glow else "hidden",
-        )
-        self.canvas.tag_lower(self._rocket_shadow, self._rocket_item)
+        self.canvas.coords(self._rocket_shadow, rocket.x + 1, rocket.y + 1)
+        visual = (rocket.text, state, self.config.display.glow)
+        if visual != self._rocket_visual:
+            self._rocket_visual = visual
+            self.canvas.itemconfigure(self._rocket_item, text=rocket.text, state=state)
+            self.canvas.itemconfigure(
+                self._rocket_shadow,
+                text=rocket.text,
+                state=state if self.config.display.glow else "hidden",
+            )
+            self.canvas.tag_lower(self._rocket_shadow, self._rocket_item)
 
     def _sync_asteroids(self, snapshot: FrameSnapshot) -> None:
         live = {asteroid.id for asteroid in snapshot.asteroids}
         for asteroid_id in set(self._asteroid_items) - live:
             self.canvas.delete(self._asteroid_items.pop(asteroid_id))
+            self._asteroid_visuals.pop(asteroid_id, None)
         for asteroid in snapshot.asteroids:
             item = self._asteroid_items.get(asteroid.id)
+            visual = (asteroid.text, self.theme.hazard)
             if item is None:
                 item = self.canvas.create_text(
                     asteroid.x,
@@ -170,22 +205,30 @@ class Renderer:
                     tags=("asteroid",),
                 )
                 self._asteroid_items[asteroid.id] = item
+                self._asteroid_visuals[asteroid.id] = visual
             else:
                 self.canvas.coords(item, asteroid.x, asteroid.y)
-                self.canvas.itemconfigure(item, text=asteroid.text, fill=self.theme.hazard, font=self._font)
+                if self._asteroid_visuals.get(asteroid.id) != visual:
+                    self.canvas.itemconfigure(item, text=asteroid.text, fill=self.theme.hazard)
+                    self._asteroid_visuals[asteroid.id] = visual
 
     def _render_explosion(self, snapshot: FrameSnapshot) -> None:
         elapsed = snapshot.explosion_elapsed
         if elapsed is None or elapsed >= 0.6:
-            self.canvas.itemconfigure(self._explosion_item, state="hidden")
+            if self._explosion_visual != ("hidden",):
+                self._explosion_visual = ("hidden",)
+                self.canvas.itemconfigure(self._explosion_item, state="hidden")
             return
         frames = ("  ·\n· ✦ ·\n  ·", "* \\ | / *\n--  X  --\n* / | \\ *", "✦  *  ✦\n  BOOM\n✦  *  ✦")
         frame = frames[min(len(frames) - 1, int(elapsed / 0.2))]
         metrics = self.font_metrics()
         center_x = snapshot.rocket.x + len(snapshot.rocket.text.splitlines()[0]) * metrics.cell_width / 2
         center_y = snapshot.rocket.y + 3 * metrics.line_height
-        self.canvas.coords(self._explosion_item, center_x, center_y)
-        self.canvas.itemconfigure(self._explosion_item, text=frame, state="normal")
+        visual = (frame, center_x, center_y)
+        if visual != self._explosion_visual:
+            self._explosion_visual = visual
+            self.canvas.coords(self._explosion_item, center_x, center_y)
+            self.canvas.itemconfigure(self._explosion_item, text=frame, state="normal")
 
     def _render_overlay(self, snapshot: FrameSnapshot) -> None:
         self.canvas.delete("overlay")
@@ -295,3 +338,4 @@ class Renderer:
             for y in range(4, self.height, 8):
                 self.canvas.create_line(0, y, self.width, y, fill=self.theme.panel, tags=("scanline",))
             self.canvas.tag_lower("scanline")
+        self._layer_order_dirty = True

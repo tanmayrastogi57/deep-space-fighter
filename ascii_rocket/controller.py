@@ -67,10 +67,13 @@ class GameController:
         self._settings_return_state = GameState.PAUSED
         self._scheduled_id: object | None = None
         self._last_time: float | None = None
+        self._next_frame_at: float | None = None
         self._running = False
         self._next_id = 1
         self._star_rng = random.Random(_star_seed(config.gameplay.seed))
         self._fps = 0.0
+        self._fps_window_started: float | None = None
+        self._fps_window_frames = 0
 
     @property
     def scheduled_id(self) -> object | None:
@@ -93,6 +96,9 @@ class GameController:
             GameState.THEME_SELECT if self.config.display.theme is None else GameState.READY
         )
         self._last_time = self.clock()
+        self._fps_window_started = self._last_time
+        self._fps_window_frames = 0
+        self._next_frame_at = self._last_time
         self._schedule_next()
 
     def tick(self, now: float | None = None) -> FrameSnapshot:
@@ -100,11 +106,17 @@ class GameController:
         if self._last_time is None:
             elapsed = 0.0
         else:
-            elapsed = max(0.0, min(0.05, current - self._last_time))
+            elapsed = max(0.0, current - self._last_time)
         self._last_time = current
         if elapsed > 0:
-            current_fps = 1.0 / elapsed
-            self._fps = current_fps if self._fps == 0 else self._fps * 0.9 + current_fps * 0.1
+            if self._fps_window_started is None:
+                self._fps_window_started = current - elapsed
+            self._fps_window_frames += 1
+            window_elapsed = current - self._fps_window_started
+            if window_elapsed >= 0.5:
+                self._fps = self._fps_window_frames / window_elapsed
+                self._fps_window_started = current
+                self._fps_window_frames = 0
         self._update(elapsed)
         snapshot = self.snapshot()
         self.renderer.render(snapshot)
@@ -119,13 +131,21 @@ class GameController:
 
     def _schedule_next(self) -> None:
         if self._scheduled_id is None and self._running and self.state is not GameState.EXITING:
-            interval = max(1, round(1000 / self.config.display.target_fps))
-            self._scheduled_id = self.scheduler.after(interval, self._run_frame)
+            period = 1.0 / self.config.display.target_fps
+            current = self.clock()
+            if self._next_frame_at is None:
+                self._next_frame_at = current + period
+            elif self._next_frame_at <= current:
+                missed_deadlines = int((current - self._next_frame_at) / period) + 1
+                self._next_frame_at += missed_deadlines * period
+            delay = max(1, round((self._next_frame_at - current) * 1000))
+            self._scheduled_id = self.scheduler.after(delay, self._run_frame)
 
     def shutdown(self) -> None:
         if self.state is not GameState.EXITING:
             self.transition(GameState.EXITING)
         self._running = False
+        self._next_frame_at = None
         if self._scheduled_id is not None:
             try:
                 self.scheduler.after_cancel(self._scheduled_id)
@@ -172,9 +192,13 @@ class GameController:
             self.transition(self._resume_state)
 
     def open_settings(self) -> None:
-        if self.state in {GameState.READY, GameState.LAUNCHING, GameState.PLAYING}:
+        if self.state is GameState.READY:
+            self._settings_return_state = GameState.READY
+            self.transition(GameState.SETTINGS)
+            return
+        if self.state in {GameState.LAUNCHING, GameState.PLAYING}:
             self.pause()
-        if self.state in {GameState.PAUSED, GameState.GAME_OVER, GameState.READY}:
+        if self.state in {GameState.PAUSED, GameState.GAME_OVER}:
             self._settings_return_state = self.state
             self.transition(GameState.SETTINGS)
 
@@ -183,15 +207,29 @@ class GameController:
             self.transition(self._settings_return_state)
 
     def update_config(self, config: AppConfig) -> None:
+        previous_theme = self.config.display.theme
+        spawn_elapsed = self.spawner.elapsed
         self.config = config
         self.input.update_controls(config.controls)
-        self.spawner.settings = config.gameplay
+        self.spawner = AsteroidSpawner(config.gameplay)
+        self.spawner.elapsed = spawn_elapsed
         self._star_rng.seed(_star_seed(config.gameplay.seed))
         self._sync_stars(reset=False)
+        if previous_theme != config.display.theme:
+            self._refresh_star_symbols()
         self._clamp_rocket()
+        self._next_frame_at = self.clock() + 1.0 / config.display.target_fps
 
     def set_viewport(self, width: float, height: float) -> None:
-        self.viewport = Viewport(max(320.0, width), max(240.0, height))
+        previous = self.viewport
+        resized = Viewport(max(320.0, width), max(240.0, height))
+        if previous.width > 0 and previous.height > 0:
+            x_scale = resized.width / previous.width
+            y_scale = resized.height / previous.height
+            for star in self.stars:
+                star.x = min(resized.width, max(0.0, star.x * x_scale))
+                star.y = min(resized.height, max(0.0, star.y * y_scale))
+        self.viewport = resized
         self._sync_stars(reset=False)
         if self.state in {GameState.BOOT, GameState.THEME_SELECT, GameState.READY}:
             self._position_rocket_for_ready()
@@ -239,10 +277,11 @@ class GameController:
         )
 
     def _update(self, elapsed: float) -> None:
-        self._update_stars(elapsed)
+        visual_elapsed = min(elapsed, 0.25)
+        self._update_stars(visual_elapsed)
         if self.state is GameState.LAUNCHING:
             target = self.viewport.height * self.config.gameplay.flight_target
-            self.rocket.y -= self.config.gameplay.launch_speed * elapsed
+            self.rocket.y -= self.config.gameplay.launch_speed * visual_elapsed
             if self.rocket.y <= target:
                 self.rocket.y = target
                 self.score.reset()
@@ -253,6 +292,16 @@ class GameController:
             self.explosion_elapsed += elapsed
 
     def _update_playing(self, elapsed: float) -> None:
+        simulated = min(elapsed, 0.25)
+        remaining = simulated
+        while remaining > 0 and self.state is GameState.PLAYING:
+            step = min(0.025, remaining)
+            self._update_playing_step(step)
+            remaining -= step
+        if self.state is GameState.PLAYING and elapsed > simulated:
+            self.score.update(elapsed - simulated)
+
+    def _update_playing_step(self, elapsed: float) -> None:
         x_direction, y_direction = self.input.pressed_vector()
         speed = self.config.gameplay.rocket_speed
         self.rocket.x += x_direction * speed * elapsed
@@ -337,6 +386,13 @@ class GameController:
             )
         if len(self.stars) > count:
             del self.stars[count:]
+
+    def _refresh_star_symbols(self) -> None:
+        theme = ThemeRegistry.get(
+            self.config.display.theme, self.config.display.color_overrides
+        )
+        for star in self.stars:
+            star.symbol = self._star_rng.choice(theme.star_symbols)
 
     def _update_stars(self, elapsed: float) -> None:
         if not self.stars:

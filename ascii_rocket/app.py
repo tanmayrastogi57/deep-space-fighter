@@ -42,6 +42,7 @@ class App:
         self.settings_window: SettingsWindow | None = None
         self._fullscreen = False
         self._closing = False
+        self._resize_after_id: str | None = None
         self._bind_events()
         self._set_fullscreen(self.config.display.fullscreen, save=False)
         self.root.update_idletasks()
@@ -176,6 +177,12 @@ class App:
     def _on_configure(self, event: tk.Event) -> None:
         if event.widget is not self.root or self._closing:
             return
+        if self._resize_after_id is not None:
+            self.root.after_cancel(self._resize_after_id)
+        self._resize_after_id = self.root.after(40, self._apply_resize)
+
+    def _apply_resize(self) -> None:
+        self._resize_after_id = None
         width = self.canvas.winfo_width()
         height = self.canvas.winfo_height()
         self.renderer.resize(width, height)
@@ -193,6 +200,12 @@ class App:
         if self._closing:
             return
         self._closing = True
+        if self._resize_after_id is not None:
+            try:
+                self.root.after_cancel(self._resize_after_id)
+            except tk.TclError:
+                pass
+            self._resize_after_id = None
         try:
             self.controller.shutdown()
         finally:

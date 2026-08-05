@@ -41,6 +41,13 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             manager.rebind("restart", "w")
 
+    def test_escape_pause_fallback_cannot_be_replaced(self) -> None:
+        manager = InputManager(AppConfig().controls)
+        with self.assertRaises(ValueError):
+            manager.rebind("pause", "q", 0)
+        manager.rebind("pause", "q", 1)
+        self.assertEqual(manager.controls.bindings["pause"], ["Escape", "q"])
+
     def test_collision_ignores_spaces(self) -> None:
         metrics = FontMetrics(10, 20)
         first = Entity(1, ArtTemplate(("X ",)), 0, 0)
@@ -83,4 +90,3 @@ class CoreTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

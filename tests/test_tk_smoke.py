@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import tkinter as tk
+import time
 import unittest
 
 from ascii_rocket.config import AppConfig
 from ascii_rocket.models import FrameSnapshot, RenderEntity
 from ascii_rocket.renderer import Renderer
+from ascii_rocket.settings_ui import SettingsWindow
 
 
 class TkSmokeTests(unittest.TestCase):
@@ -50,7 +52,58 @@ class TkSmokeTests(unittest.TestCase):
             renderer.render(snapshot)
         canvas.destroy()
 
+    def test_steady_state_renderer_meets_frame_budget(self) -> None:
+        from ascii_rocket.models import RenderStar
+
+        canvas = tk.Canvas(self.root, width=1920, height=1080)
+        canvas.pack()
+        config = AppConfig()
+        config.display.theme = "deep-space-hud"
+        renderer = Renderer(self.root, canvas, config)
+        renderer.resize(1920, 1080)
+        stars = tuple(
+            RenderStar(index, (index * 83) % 1920, (index * 47) % 1080, ".", 0.7)
+            for index in range(180)
+        )
+        snapshot = FrameSnapshot(
+            "PLAYING",
+            RenderEntity(0, " /\\\n/▲\\", 900, 800, "rocket"),
+            (),
+            stars,
+            0,
+            0,
+            0.0,
+            0,
+            None,
+            False,
+            60.0,
+        )
+        renderer.render(snapshot)
+        started = time.perf_counter()
+        for _ in range(60):
+            renderer.render(snapshot)
+        average_ms = (time.perf_counter() - started) * 1000 / 60
+        self.assertLess(average_ms, 10.0)
+        canvas.destroy()
+
+    def test_theme_selection_applies_theme_scanline_default(self) -> None:
+        config = AppConfig()
+        config.display.theme = "deep-space-hud"
+        window = SettingsWindow(
+            self.root,
+            config,
+            lambda _candidate: None,
+            lambda _candidate: None,
+            lambda _candidate: None,
+        )
+        window.vars["display.theme"].set("terminal-noir")
+        self.root.update_idletasks()
+        self.assertTrue(window.vars["display.scanlines"].get())
+        window.vars["display.theme"].set("neon-arcade")
+        self.root.update_idletasks()
+        self.assertFalse(window.vars["display.scanlines"].get())
+        window.cancel()
+
 
 if __name__ == "__main__":
     unittest.main()
-

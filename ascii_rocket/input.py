@@ -43,6 +43,8 @@ class InputManager:
     def rebind(self, action: str, key: str, slot: int = 0) -> None:
         if action not in self.controls.bindings:
             raise KeyError(action)
+        if action == "pause" and slot == 0 and key != "Escape":
+            raise ValueError("Escape is the fixed pause fallback")
         normalized = canonical_key(key)
         for other_action, keys in self.controls.bindings.items():
             for other_slot, other_key in enumerate(keys):
@@ -55,4 +57,3 @@ class InputManager:
             keys.append("")
         keys[slot] = key
         self.controls.bindings[action] = [item for item in keys if item]
-

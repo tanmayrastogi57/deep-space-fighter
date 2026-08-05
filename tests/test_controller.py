@@ -27,11 +27,13 @@ class FakeScheduler:
         self.callbacks = {}
         self.next_id = 1
         self.cancelled = []
+        self.delays = []
 
     def after(self, _milliseconds, callback):
         callback_id = self.next_id
         self.next_id += 1
         self.callbacks[callback_id] = callback
+        self.delays.append(_milliseconds)
         return callback_id
 
     def after_cancel(self, callback_id):
@@ -107,6 +109,56 @@ class ControllerTests(unittest.TestCase):
         self.controller.resume()
         self.assertEqual(self.controller.state, GameState.PLAYING)
 
+    def test_ready_settings_returns_directly_to_ready(self) -> None:
+        self.controller.start()
+        self.controller.open_settings()
+        self.assertEqual(self.controller.state, GameState.SETTINGS)
+        self.controller.close_settings()
+        self.assertEqual(self.controller.state, GameState.READY)
+
+    def test_real_elapsed_time_drives_score_and_fps(self) -> None:
+        self.controller.start()
+        self.controller.transition(GameState.LAUNCHING)
+        self.controller.transition(GameState.PLAYING)
+        self.clock_value = 1.0
+        snapshot = self.controller.tick(self.clock_value)
+        self.assertEqual(snapshot.score, 5)
+        self.assertAlmostEqual(snapshot.fps, 1.0)
+
+    def test_scheduler_subtracts_render_time_from_deadline(self) -> None:
+        original_render = self.renderer.render
+
+        def slow_render(snapshot):
+            original_render(snapshot)
+            self.clock_value += 0.010
+
+        self.renderer.render = slow_render
+        self.controller.start()
+        callback_id = self.controller.scheduled_id
+        callback = self.scheduler.callbacks.pop(callback_id)
+        self.clock_value = 1 / 60
+        callback()
+        self.assertLessEqual(self.scheduler.delays[-1], 8)
+
+    def test_resize_keeps_stars_distributed_inside_viewport(self) -> None:
+        config = self.config.clone()
+        config.display.star_count = 30
+        self.controller.update_config(config)
+        self.controller.set_viewport(1920, 1080)
+        self.controller.set_viewport(800, 600)
+        self.assertTrue(all(0 <= star.x <= 800 and 0 <= star.y <= 600 for star in self.controller.stars))
+
+    def test_theme_switch_refreshes_existing_star_symbols(self) -> None:
+        config = self.config.clone()
+        config.display.star_count = 20
+        self.controller.update_config(config)
+        for star in self.controller.stars:
+            star.symbol = "OLD"
+        changed = config.clone()
+        changed.display.theme = "neon-arcade"
+        self.controller.update_config(changed)
+        self.assertTrue(all(star.symbol != "OLD" for star in self.controller.stars))
+
     def test_restart_clears_run_without_second_loop(self) -> None:
         self.controller.start()
         self.controller.transition(GameState.LAUNCHING)
@@ -133,4 +185,3 @@ class ControllerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

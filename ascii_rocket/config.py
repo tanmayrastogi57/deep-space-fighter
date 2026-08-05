@@ -189,8 +189,8 @@ class AppConfig:
                 action: [str(key) for key in keys if str(key)]
                 for action, keys in self.controls.bindings.items()
             }
-        if "Escape" not in self.controls.bindings["pause"]:
-            self.controls.bindings["pause"].insert(0, "Escape")
+        pause_keys = [key for key in self.controls.bindings["pause"] if key != "Escape"]
+        self.controls.bindings["pause"] = ["Escape", *pause_keys]
         self.load_warnings.extend(warnings)
         return warnings
 
@@ -317,4 +317,3 @@ def _choice(value: Any, allowed: tuple[int, ...], default: int, warnings: list[s
         warnings.append(f"Invalid {label} reset")
         return default
     return parsed
-

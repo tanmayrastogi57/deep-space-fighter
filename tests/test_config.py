@@ -48,6 +48,12 @@ class ConfigTests(unittest.TestCase):
         config = AppConfig.from_dict({"display": {"theme": "terminal-noir", "future": True}, "future": 2})
         self.assertEqual(config.display.theme, "terminal-noir")
 
+    def test_escape_is_normalized_as_fixed_pause_binding(self) -> None:
+        config = AppConfig()
+        config.controls.bindings["pause"] = ["p", "Escape"]
+        config.validate()
+        self.assertEqual(config.controls.bindings["pause"], ["Escape", "p"])
+
     def test_presets_have_distinct_difficulty(self) -> None:
         easy = AppConfig().gameplay
         hard = AppConfig().gameplay
@@ -75,4 +81,3 @@ class ConfigTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

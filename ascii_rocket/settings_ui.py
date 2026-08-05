@@ -91,7 +91,9 @@ class SettingsWindow:
             self._entry(colors, name.title(), f"color.{name}", compact=True)
         for key, variable in self.vars.items():
             if key.startswith("display.") or key.startswith("color."):
-                variable.trace_add("write", self._appearance_changed)
+                if key != "display.theme":
+                    variable.trace_add("write", self._appearance_changed)
+        self.vars["display.theme"].trace_add("write", self._theme_changed)
 
     def _build_gameplay(self, page: ttk.Frame) -> None:
         self._combo(page, "Preset", "gameplay.preset", ["easy", "normal", "hard", "custom"])
@@ -142,6 +144,8 @@ class SettingsWindow:
                 )
                 button.grid(row=row, column=slot + 1, padx=5, pady=6)
                 self.binding_buttons[(action, slot)] = button
+                if action == "pause" and slot == 0:
+                    button.configure(state="disabled")
 
     def _build_system(self, page: ttk.Frame) -> None:
         self._check(page, "Borderless fullscreen", "display.fullscreen")
@@ -322,6 +326,12 @@ class SettingsWindow:
             return
         self.on_preview(candidate)
 
+    def _theme_changed(self, *_args) -> None:
+        if self._loading or self._closing:
+            return
+        theme = ThemeRegistry.get(str(self.vars["display.theme"].get()))
+        self.vars["display.scanlines"].set(theme.scanlines_default)
+
     def _preset_changed(self, *_args) -> None:
         if self._loading:
             return
@@ -364,6 +374,8 @@ class SettingsWindow:
             self.vars[key].set(value)
 
     def capture_binding(self, action: str, slot: int) -> None:
+        if action == "pause" and slot == 0:
+            return
         if self._capturing is not None:
             self._refresh_binding_buttons()
         self._capturing = (action, slot)
@@ -390,8 +402,11 @@ class SettingsWindow:
             keys.append("")
         keys[slot] = key
         self.bindings[action] = [item for item in keys if item]
-        if action == "pause" and "Escape" not in self.bindings[action]:
-            self.bindings[action].insert(0, "Escape")
+        if action == "pause":
+            self.bindings[action] = [
+                "Escape",
+                *[item for item in self.bindings[action] if item != "Escape"],
+            ]
         self._capturing = None
         self.window.unbind("<KeyPress>")
         self._refresh_binding_buttons()
