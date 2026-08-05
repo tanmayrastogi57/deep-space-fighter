@@ -6,6 +6,6 @@ __pycache__/
 build/
 dist/
 *.spec
+*.egg-info/
 .superpowers/
 graphify-out/
-
