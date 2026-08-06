@@ -42,4 +42,5 @@ func _start_game(mode: String, start_new: bool) -> void:
 
 func _quit() -> void:
 	Career.save_atomic()
+	Sound.shutdown()
 	get_tree().quit()

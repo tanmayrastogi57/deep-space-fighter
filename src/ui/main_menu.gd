@@ -210,11 +210,11 @@ func _build_settings() -> void:
 	add_child(settings_panel)
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.position = Vector2(-360, -330)
-	panel.size = Vector2(720, 660)
+	panel.position = Vector2(-360, -350)
+	panel.size = Vector2(720, 700)
 	settings_panel.add_child(panel)
 	var stack := VBoxContainer.new()
-	stack.add_theme_constant_override("separation", 12)
+	stack.add_theme_constant_override("separation", 4)
 	panel.add_child(stack)
 	var title := _label("FLIGHT SETTINGS", 34, Color("#e7f7ff"))
 	stack.add_child(title)
@@ -259,6 +259,7 @@ func _build_settings() -> void:
 	rebind_status = _label("Escape always remains the pause fallback.", 13, Color("#6f98aa"))
 	stack.add_child(rebind_status)
 	var save_button := _button("APPLY SETTINGS")
+	save_button.custom_minimum_size.y = 40
 	save_button.pressed.connect(func() -> void:
 		Settings.data.fullscreen = fullscreen.button_pressed
 		Settings.data.vsync = vsync.button_pressed
@@ -273,6 +274,7 @@ func _build_settings() -> void:
 	)
 	stack.add_child(save_button)
 	var cancel := _button("CANCEL")
+	cancel.custom_minimum_size.y = 40
 	cancel.pressed.connect(show_home)
 	stack.add_child(cancel)
 

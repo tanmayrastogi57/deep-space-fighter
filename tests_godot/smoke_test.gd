@@ -31,10 +31,14 @@ func _run() -> void:
 	await get_tree().process_frame
 	if failures.is_empty():
 		print("PASS: 3D flight scene smoke test")
+		Sound.shutdown()
+		await get_tree().process_frame
 		get_tree().quit(0)
 	else:
 		for failure in failures:
 			push_error(failure)
+		Sound.shutdown()
+		await get_tree().process_frame
 		get_tree().quit(1)
 
 

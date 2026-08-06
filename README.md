@@ -1,85 +1,120 @@
-# ASCII Rocket
+# Deep Space Fighter
 
-ASCII Rocket is a polished endless-survival desktop game rendered entirely as
-ASCII/Unicode text on a Tkinter Canvas. It includes three selectable themes,
-procedural sound, persistent high score, advanced settings, deterministic test
-seeds, and no runtime dependencies outside Python's standard library.
+A realistic 3D free-roaming space fighter game built with Godot 4. Fly one upgradeable fighter through a streamed star system, explore orbital vistas, perform aerobatics, intercept comets, destroy meteors, fight hostile patrols, and land on a station or carrier.
 
-## Run from source
+The previous Python/Tkinter ASCII game has been replaced. Gameplay now uses real 3D geometry, PBR-style materials, lighting, particles, spatial scenes, and multiple flight cameras.
 
-Requirements: Windows 11, Python 3.11 or newer, Tk 8.6.
+## Quick start on Windows
+
+Install the portable Godot 4.7.1 toolchain from the official release host:
 
 ```powershell
-python -m ascii_rocket
+powershell -ExecutionPolicy Bypass -File .\setup_godot.ps1
 ```
 
-First launch asks you to choose Terminal Noir, Deep-Space HUD, or Neon Arcade.
-The game then waits for Space or Enter before launching.
+This is a large one-time download because Godot distributes export templates for all platforms in one archive. The script keeps only the Windows templates.
 
-## Controls
+Run the game:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+Alternatively, import `project.godot` into Godot 4.7.1 or newer and press `F5`.
+
+## Game modes
+
+- **Explorer:** vistas, discoveries, aerobatic gates, meteors, and comet interception without hostile ships.
+- **Patrol:** Explorer activities plus drones, light fighters, rescue work, and moderate combat.
+- **Warzone:** heavier fighters, larger hostile groups, dangerous contracts, and escalating pursuit.
+
+Each mode uses the same deterministic open world and persistent career. The hangar offers five levels across engine, thrusters, hull, shields, energy, cannon, missiles, and sensors.
+
+## Flight controls
 
 | Action | Default |
-|---|---|
-| Move | W/A/S/D or arrow keys |
-| Launch | Space or Enter |
-| Pause menu | Escape or P |
-| Restart after game over | R |
-| Toggle fullscreen | F11 |
-| FPS diagnostic | F3 |
+| --- | --- |
+| Increase / decrease throttle | `Left Shift` / `Left Ctrl` |
+| Pitch down / up | `W` / `S` or `Numpad 8` / `Numpad 5` |
+| Roll left / right | `A` / `D` or `Numpad 4` / `Numpad 6` |
+| Yaw left / right | `Q` / `E` |
+| Look around | Mouse |
+| Extended free-look | Hold `Alt` |
+| Rear view | Hold `C` |
+| Cycle cockpit / close / far cameras | `V` |
+| Toggle flight assist | `X` |
+| Landing gear | `G` |
+| Dock / interact | `F` |
+| Fire current weapon | `Left Mouse Button` or `Space` |
+| Missile target lock | Hold `Right Mouse Button` |
+| Switch cannon / homing missiles | Mouse wheel |
+| Pause and live settings | `Escape` |
+| Diagnostics | `F3` |
+| Fullscreen | `F11` |
 
-Movement and menu bindings can be changed in Settings. Escape always remains a
-pause fallback.
+Keyboard controls can be rebound from Settings. Duplicate bindings are rejected, and `Escape` always remains a pause fallback.
 
-## Settings and saved data
+## World and systems
 
-Settings and high score are written atomically under:
-
-```text
-%APPDATA%\AsciiRocket
-```
-
-Logs are written under:
-
-```text
-%LOCALAPPDATA%\AsciiRocket\ascii_rocket.log
-```
-
-Corrupt settings never prevent startup. The game restores validated defaults
-and shows a warning.
+- Authored delta-wing fighter with cockpit, engine pods, hardpoints, emissive thrusters, and functional landing gear
+- Cockpit, close chase, far chase, rear-view, mouse orbit, and speed-sensitive field of view
+- Assisted aircraft-like space physics with optional inertial drift
+- Handcrafted station, carrier, planets, moons, rings, nebula region, belt, wreck sites, and scenic discoveries
+- Deterministic sector streaming and floating-origin correction for extended free roam
+- Procedural irregular asteroid meshes, moving comets, destructible hazards, debris feedback, and collision damage
+- Cannon and homing missiles with target acquisition, lock progress, ammunition, energy, shields, and hull damage
+- Patrol, pursuit, attack, evade, and retreat AI states
+- Six contract families, credits, repairs, rearming, discoveries, and eight upgrade paths
+- Atomic career saves with backup recovery and quarantining of damaged data
+- Synthesized engine, cannon, missile, impact, and docking audio without downloaded runtime assets
 
 ## Tests
 
-```powershell
-python -m unittest discover -s tests -v
-```
-
-Tests cover configuration, themes, input, score timing, collision, seeded
-spawning, difficulty progression, controller lifecycle, and Tk rendering.
-
-## Build portable Windows app
+Run the deterministic suite:
 
 ```powershell
-.\build.ps1
+.\.tools\godot-4.7.1\Godot_v4.7.1-stable_win64_console.exe --headless --path . res://tests_godot/test_runner.tscn
 ```
 
-The script runs tests, installs PyInstaller as a build-only dependency when
-needed, then creates:
+Run the integrated 3D scene smoke test:
+
+```powershell
+.\.tools\godot-4.7.1\Godot_v4.7.1-stable_win64_console.exe --headless --path . res://tests_godot/smoke_test.tscn
+```
+
+`build.ps1` runs script validation and both test layers before exporting.
+
+## Build the Windows game
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\build.ps1
+```
+
+Output:
 
 ```text
-dist\ASCII Rocket\ASCII Rocket.exe
+dist\Deep Space Fighter\Deep Space Fighter.exe
 ```
 
-The one-folder distribution is portable and does not require Python on the
-target machine.
+The `.pck` is embedded into the executable. The finished folder can be copied to another Windows machine without Python or Godot installed.
+
+## Save locations
+
+Exported builds use Godot's normal Windows application-data directory:
+
+```text
+%APPDATA%\Godot\app_userdata\Deep Space Fighter
+```
+
+The portable editor is self-contained under `.tools\godot-4.7.1\editor_data`. Settings and career files are JSON and written atomically.
 
 ## Troubleshooting
 
-- If a preferred font is missing, the game falls back through Consolas,
-  Courier New, DejaVu Sans Mono, and TkFixedFont.
-- If Windows audio is unavailable, gameplay continues silently.
-- Press Escape to reach Exit Fullscreen or Quit from the pause menu.
-- Delete `%APPDATA%\AsciiRocket\settings.json` to trigger first-run theme
-  selection again.
+- **Godot not found:** run `setup_godot.ps1`, or install Godot 4.7.1+ and ensure `godot4` or `godot` is on `PATH`.
+- **Windows export template missing:** rerun `setup_godot.ps1`; it extracts the official Windows templates.
+- **Low frame rate:** lower the graphics preset, reduce camera effects, and cap the frame rate at 60.
+- **Uncomfortable camera motion:** lower Camera Shake or enable reduced effects in Settings.
+- **Unexpected controls:** open Settings to inspect or rebind the action. `Escape` remains available after rebinding.
+- **Damaged career file:** the game quarantines it and recovers the last valid `.bak` save when available.
 
-No controller, network, raster image, leaderboard, power-up, or boss feature is
-included in version 1.
+The project requires no network access or downloaded art assets at runtime.

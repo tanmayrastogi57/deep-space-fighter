@@ -26,8 +26,8 @@ func defaults() -> Dictionary:
 		"aim_assist": 0.35,
 		"master_volume": 0.8,
 		"music_volume": 0.55,
-		"effects_volume": 0.85
-		,"bindings": {}
+		"effects_volume": 0.85,
+		"bindings": {}
 	}
 
 

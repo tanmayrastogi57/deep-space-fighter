@@ -20,11 +20,15 @@ func _run() -> void:
 	_test_sector_streaming_math()
 	if failures.is_empty():
 		print("PASS: %d deterministic checks" % checks)
+		Sound.shutdown()
+		await get_tree().process_frame
 		get_tree().quit(0)
 	else:
 		for failure in failures:
 			push_error(failure)
 		print("FAIL: %d of %d checks failed" % [failures.size(), checks])
+		Sound.shutdown()
+		await get_tree().process_frame
 		get_tree().quit(1)
 
 

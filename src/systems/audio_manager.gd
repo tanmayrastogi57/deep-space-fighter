@@ -7,6 +7,8 @@ var engine_throttle := 0.0
 
 
 func _ready() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
 	engine_player = AudioStreamPlayer.new()
 	engine_player.name = "EngineLoop"
 	var stream := AudioStreamGenerator.new()
@@ -16,6 +18,21 @@ func _ready() -> void:
 	add_child(engine_player)
 	engine_player.play()
 	engine_playback = engine_player.get_stream_playback()
+
+
+func _exit_tree() -> void:
+	shutdown()
+
+
+func shutdown() -> void:
+	if engine_player != null:
+		engine_player.stop()
+		engine_player.stream = null
+		if engine_player.get_parent() == self:
+			remove_child(engine_player)
+		engine_player.free()
+		engine_player = null
+	engine_playback = null
 
 
 func _process(_delta: float) -> void:
@@ -87,4 +104,3 @@ func _build_effect(effect: StringName, strength: float) -> AudioStreamWAV:
 	stream.stereo = false
 	stream.data = bytes
 	return stream
-

@@ -88,7 +88,7 @@ func _physics_process(delta: float) -> void:
 		Input.get_action_strength("throttle_down"),
 		delta
 	)
-	var pitch_input := Input.get_axis("pitch_up", "pitch_down")
+	var pitch_input := Input.get_axis("pitch_down", "pitch_up")
 	var roll_input := Input.get_axis("roll_left", "roll_right")
 	var yaw_input := Input.get_axis("yaw_left", "yaw_right")
 	var authority := lerpf(0.56, 1.0, throttle)
@@ -286,4 +286,3 @@ func weapon_name() -> String:
 
 func camera_name() -> String:
 	return camera_rig.view_name() if camera_rig else "CHASE"
-

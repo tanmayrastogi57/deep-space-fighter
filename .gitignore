@@ -13,3 +13,4 @@ graphify-out/
 .tools/
 logs/
 *.tmp
+*.import

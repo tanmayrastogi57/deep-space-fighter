@@ -67,6 +67,38 @@ static func sphere(radius: float, radial_segments: int = 32, rings: int = 16) ->
 	return mesh
 
 
+static func delta_wing_mesh(span: float, length: float, thickness: float) -> ArrayMesh:
+	var half_span := span * 0.5
+	var half_thickness := thickness * 0.5
+	var half_length := length * 0.5
+	var footprint := [
+		Vector3(0.0, half_thickness, -half_length),
+		Vector3(half_span, half_thickness, half_length * 0.72),
+		Vector3(0.72, half_thickness, half_length),
+		Vector3(-0.72, half_thickness, half_length),
+		Vector3(-half_span, half_thickness, half_length * 0.72)
+	]
+	var surface := SurfaceTool.new()
+	surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for triangle in [[0, 1, 2], [0, 2, 3], [0, 3, 4]]:
+		_add_triangle(surface, footprint[triangle[0]], footprint[triangle[1]], footprint[triangle[2]], Vector2.ZERO, Vector2.RIGHT, Vector2.ONE)
+	for triangle in [[0, 2, 1], [0, 3, 2], [0, 4, 3]]:
+		var first: Vector3 = footprint[triangle[0]] - Vector3(0, thickness, 0)
+		var second: Vector3 = footprint[triangle[1]] - Vector3(0, thickness, 0)
+		var third: Vector3 = footprint[triangle[2]] - Vector3(0, thickness, 0)
+		_add_triangle(surface, first, second, third, Vector2.ZERO, Vector2.ONE, Vector2.RIGHT)
+	for edge_index in footprint.size():
+		var next_index := (edge_index + 1) % footprint.size()
+		var top_a: Vector3 = footprint[edge_index]
+		var top_b: Vector3 = footprint[next_index]
+		var bottom_a := top_a - Vector3(0, thickness, 0)
+		var bottom_b := top_b - Vector3(0, thickness, 0)
+		_add_triangle(surface, top_a, bottom_a, bottom_b, Vector2.ZERO, Vector2.DOWN, Vector2.ONE)
+		_add_triangle(surface, top_a, bottom_b, top_b, Vector2.ZERO, Vector2.ONE, Vector2.RIGHT)
+	surface.generate_normals()
+	return surface.commit()
+
+
 static func build_fighter(parent: Node3D, hostile: bool = false) -> Dictionary:
 	var root := Node3D.new()
 	root.name = "FighterModel"
@@ -86,7 +118,7 @@ static func build_fighter(parent: Node3D, hostile: bool = false) -> Dictionary:
 	add_mesh(root, cylinder(0.58, 0.78, 4.4), Vector3(0, 0, 0.2), Vector3.ONE, hull, Vector3(90, 0, 0), "MainHull")
 	add_mesh(root, cylinder(0.025, 0.58, 2.9), Vector3(0, 0, -3.42), Vector3.ONE, hull, Vector3(-90, 0, 0), "Nose")
 	add_mesh(root, cylinder(0.82, 0.72, 1.75), Vector3(0, 0, 3.12), Vector3.ONE, panels, Vector3(90, 0, 0), "AftHull")
-	add_mesh(root, box(Vector3(6.3, 0.16, 2.45)), Vector3(0, -0.08, 0.72), Vector3.ONE, hull, Vector3(0, 0, 0), "MainWing")
+	add_mesh(root, delta_wing_mesh(7.1, 3.35, 0.18), Vector3(0, -0.08, 0.62), Vector3.ONE, hull, Vector3(0, 0, 0), "MainWing")
 	add_mesh(root, box(Vector3(4.9, 0.09, 0.52)), Vector3(0, 0.04, -0.55), Vector3.ONE, accents, Vector3(0, 0, 0), "WingPanel")
 	add_mesh(root, box(Vector3(2.4, 0.1, 1.25)), Vector3(0, 0.26, 2.62), Vector3.ONE, panels, Vector3(0, 0, 0), "TailPlane")
 	add_mesh(root, box(Vector3(0.12, 1.45, 1.3)), Vector3(0, 0.78, 2.62), Vector3.ONE, accents, Vector3(-12, 0, 0), "VerticalTail")
@@ -170,11 +202,38 @@ static func spawn_explosion(parent: Node, world_position: Vector3, radius: float
 	flash.name = "Explosion"
 	flash.mesh = sphere(1.0, 20, 10)
 	flash.material_override = material(Color(color, 0.52), 0.0, 0.15, color, true)
-	flash.global_position = world_position
 	flash.scale = Vector3.ONE * 0.08
 	parent.add_child(flash)
+	flash.global_position = world_position
+	var debris := GPUParticles3D.new()
+	debris.name = "ExplosionDebris"
+	debris.amount = 42
+	debris.lifetime = 0.82
+	debris.one_shot = true
+	debris.explosiveness = 1.0
+	debris.randomness = 0.72
+	var particle_material := ParticleProcessMaterial.new()
+	particle_material.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+	particle_material.emission_sphere_radius = radius * 0.12
+	particle_material.direction = Vector3.UP
+	particle_material.spread = 180.0
+	particle_material.initial_velocity_min = radius * 2.2
+	particle_material.initial_velocity_max = radius * 5.0
+	particle_material.gravity = Vector3.ZERO
+	particle_material.scale_min = 0.35
+	particle_material.scale_max = 1.4
+	particle_material.color = color
+	debris.process_material = particle_material
+	var particle_mesh := sphere(maxf(0.035, radius * 0.035), 6, 3)
+	particle_mesh.material = material(color, 0.05, 0.25, color)
+	debris.draw_pass_1 = particle_mesh
+	parent.add_child(debris)
+	debris.global_position = world_position
+	debris.emitting = true
 	var tween := flash.create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(flash, "scale", Vector3.ONE * radius, 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.tween_property(flash, "transparency", 1.0, 0.36)
 	tween.chain().tween_callback(flash.queue_free)
+	var debris_timer := debris.get_tree().create_timer(1.25)
+	debris_timer.timeout.connect(debris.queue_free)
