@@ -9,3 +9,7 @@ dist/
 *.egg-info/
 .superpowers/
 graphify-out/
+.godot/
+.tools/
+logs/
+*.tmp
