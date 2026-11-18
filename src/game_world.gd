@@ -99,6 +99,10 @@ func _spawn_hostiles() -> void:
 
 
 func _prepare_contract() -> void:
+	if Career.sandbox:
+		active_contract = {}
+		_build_objective_markers()
+		return
 	if starting_new or Career.data.get("active_contract", {}).is_empty():
 		active_contract = ContractSystem.generate(mode, world_seed, int(Career.data.get("completed_contracts", 0)))
 	else:

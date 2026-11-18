@@ -18,6 +18,7 @@ func _run() -> void:
 	_test_mesh_generation()
 	_test_settings_validation()
 	_test_sector_streaming_math()
+	_test_sandbox()
 	if failures.is_empty():
 		print("PASS: %d deterministic checks" % checks)
 		Sound.shutdown()
@@ -30,6 +31,25 @@ func _run() -> void:
 		Sound.shutdown()
 		await get_tree().process_frame
 		get_tree().quit(1)
+
+
+func _test_sandbox() -> void:
+	var original := Career.save_path
+	Career.save_path = "user://sandbox-test-%d.json" % OS.get_process_id()
+	Career.new_career("PATROL", 42)
+	Career.add_credits(193)
+	var before := FileAccess.get_file_as_bytes(Career.save_path)
+	var backup := FileAccess.get_file_as_bytes(Career.save_path + ".bak")
+	Career.begin_sandbox("WARZONE")
+	Career.add_credits(9999)
+	Career.end_sandbox()
+	_expect_equal(Career.data.credits, 2693, "Sandbox restores the parked wallet")
+	_expect_equal(FileAccess.get_file_as_bytes(Career.save_path), before, "Sandbox leaves career bytes unchanged")
+	_expect_equal(FileAccess.get_file_as_bytes(Career.save_path + ".bak"), backup, "Sandbox leaves backup unchanged")
+	_expect(Career.load_career() and Career.data.credits == 2693, "Continue loads the saved wallet")
+	for suffix in ["", ".bak"]:
+		DirAccess.remove_absolute(Career.save_path + suffix)
+	Career.save_path = original
 
 
 func _test_flight_math() -> void:

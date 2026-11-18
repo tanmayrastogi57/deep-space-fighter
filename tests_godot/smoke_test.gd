@@ -9,6 +9,7 @@ func _ready() -> void:
 
 func _run() -> void:
 	InputSetup.install_defaults()
+	Career.save_path = "user://smoke-%d.json" % OS.get_process_id()
 	Career.data = Career.default_career()
 	Career.data.mode = "PATROL"
 	var world_script: Script = load("res://src/game_world.gd")
@@ -29,6 +30,9 @@ func _run() -> void:
 	_check(not world.active_contract.is_empty(), "Career contract exists")
 	world.queue_free()
 	await get_tree().process_frame
+	for suffix in ["", ".bak", ".tmp"]:
+		if FileAccess.file_exists(Career.save_path + suffix):
+			DirAccess.remove_absolute(Career.save_path + suffix)
 	if failures.is_empty():
 		print("PASS: 3D flight scene smoke test")
 		Sound.shutdown()

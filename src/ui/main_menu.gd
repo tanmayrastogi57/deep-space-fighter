@@ -1,14 +1,15 @@
 extends CanvasLayer
 class_name MainMenu
 
-signal start_requested(mode: String, start_new: bool)
+signal start_requested(mode: String, intent: String)
 signal quit_requested
 
 var home_panel: Control
 var mode_panel: Control
 var settings_panel: Control
 var hangar_panel: Control
-var starting_new := false
+var launch_intent := ""
+var mode_caption: Label
 var status_label: Label
 var credits_label: Label
 var upgrade_buttons: Dictionary = {}
@@ -44,6 +45,7 @@ func _ready() -> void:
 
 
 func show_home() -> void:
+	launch_intent = ""
 	home_panel.visible = true
 	mode_panel.visible = false
 	settings_panel.visible = false
@@ -68,8 +70,9 @@ func show_hangar() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
-func _show_modes(new_career: bool) -> void:
-	starting_new = new_career
+func _show_modes(intent: String) -> void:
+	launch_intent = intent
+	mode_caption.text = "FREE FLIGHT · Practice only. No career progress is read or saved." if intent == "sandbox" else "CAREER · Mission and chapter progress save automatically. Choose your threat level."
 	home_panel.visible = false
 	mode_panel.visible = true
 	settings_panel.visible = false
@@ -77,7 +80,21 @@ func _show_modes(new_career: bool) -> void:
 
 
 func _select_mode(mode: String) -> void:
-	start_requested.emit(mode, starting_new)
+	if launch_intent in ["new", "continue", "sandbox"]:
+		start_requested.emit(mode, launch_intent)
+
+
+func _request_new() -> void:
+	if not Career.has_career():
+		_show_modes("new")
+		return
+	var confirm := ConfirmationDialog.new()
+	confirm.dialog_text = "Starting a new career replaces the existing one when you choose a flight mode."
+	add_child(confirm)
+	confirm.confirmed.connect(_show_modes.bind("new"))
+	confirm.confirmed.connect(confirm.queue_free)
+	confirm.canceled.connect(confirm.queue_free)
+	confirm.popup_centered()
 
 
 func _build_background() -> void:
@@ -120,19 +137,23 @@ func _build_home() -> void:
 	var subtitle := _label("REALISTIC FREE-ROAM SPACE FLIGHT", 16, Color("#829faf"))
 	stack.add_child(subtitle)
 	stack.add_child(HSeparator.new())
-	var continue_button := _button("CONTINUE CAREER")
-	continue_button.disabled = not Career.has_career()
-	continue_button.pressed.connect(_show_modes.bind(false))
-	stack.add_child(continue_button)
-	var new_button := _button("NEW CAREER")
-	new_button.pressed.connect(_show_modes.bind(true))
+	if Career.has_career():
+		var task := str(Career.data.active_contract.get("title", "Asteria flight command"))
+		var continue_button := _button("CONTINUE: " + task.to_upper())
+		continue_button.pressed.connect(_show_modes.bind("continue"))
+		stack.add_child(continue_button)
+		continue_button.grab_focus()
+	var new_button := _button("START GUIDED CAREER")
+	new_button.pressed.connect(_request_new)
 	stack.add_child(new_button)
+	if not Career.has_career():
+		new_button.grab_focus()
 	var hangar_button := _button("HANGAR / UPGRADES")
 	hangar_button.disabled = not Career.has_career()
 	hangar_button.pressed.connect(show_hangar)
 	stack.add_child(hangar_button)
-	var free_button := _button("FREE FLIGHT")
-	free_button.pressed.connect(_select_mode.bind("EXPLORER"))
+	var free_button := _button("FREE FLIGHT  ·  NO SAVE")
+	free_button.pressed.connect(_show_modes.bind("sandbox"))
 	stack.add_child(free_button)
 	var settings_button := _button("SETTINGS")
 	settings_button.pressed.connect(show_settings)
@@ -159,15 +180,15 @@ func _build_mode_picker() -> void:
 	var title := _label("SELECT FLIGHT MODE", 38, Color("#e4f6ff"))
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	stack.add_child(title)
-	var subtitle := _label("The same persistent system. You decide how dangerous it becomes.", 17, Color("#89a9b8"))
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	stack.add_child(subtitle)
+	mode_caption = _label("", 17, Color("#89a9b8"))
+	mode_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stack.add_child(mode_caption)
 	var cards := HBoxContainer.new()
 	cards.add_theme_constant_override("separation", 16)
 	stack.add_child(cards)
 	_add_mode_card(cards, "EXPLORER", "NO HOSTILES", "Vistas, aerobatics, discoveries,\nmeteors and comet interception.", Color("#54d5eb"))
-	_add_mode_card(cards, "PATROL", "MODERATE THREAT", "Explorer activities plus drones,\nlight fighters and rescue work.", Color("#f0c369"))
-	_add_mode_card(cards, "WARZONE", "SEVERE THREAT", "Hostile groups, heavy fighters,\ncapital encounters and pursuit.", Color("#ff655c"))
+	_add_mode_card(cards, "PATROL", "MODERATE THREAT", "Four hostile fighters patrol the system. Fly contracts or engage them.", Color("#f0c369"))
+	_add_mode_card(cards, "WARZONE", "SEVERE THREAT", "Eight hostiles, including three heavy fighters. Expect pursuit near enemy groups.", Color("#ff655c"))
 	var back := _button("BACK")
 	back.custom_minimum_size = Vector2(260, 50)
 	back.pressed.connect(show_home)
@@ -200,6 +221,7 @@ func _add_mode_card(parent: HBoxContainer, mode: String, danger: String, descrip
 	description_label.custom_minimum_size.y = 130
 	content.add_child(description_label)
 	var launch := _button("LAUNCH " + mode)
+	launch.custom_minimum_size.x = 220
 	launch.pressed.connect(_select_mode.bind(mode))
 	content.add_child(launch)
 

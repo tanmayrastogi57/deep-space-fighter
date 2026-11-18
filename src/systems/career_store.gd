@@ -6,10 +6,28 @@ const DEFAULT_PATH := "user://career.json"
 var save_path := DEFAULT_PATH
 var data: Dictionary = {}
 var recovery_message := ""
+var sandbox := false
+var _parked_career: Dictionary
 
 
 func _ready() -> void:
-	load_career()
+	data = default_career()
+
+
+func begin_sandbox(mode: String) -> void:
+	if sandbox:
+		return
+	_parked_career = data
+	sandbox = true
+	data = default_career()
+	data.mode = mode
+
+
+func end_sandbox() -> void:
+	if sandbox:
+		data = _parked_career
+		_parked_career = {}
+		sandbox = false
 
 
 func default_career() -> Dictionary:
@@ -75,6 +93,8 @@ func load_career() -> bool:
 
 
 func save_atomic() -> bool:
+	if sandbox:
+		return true
 	if not _validate(data):
 		push_error("Career data failed validation; refusing to save.")
 		return false
@@ -128,9 +148,11 @@ func upgrade_price(upgrade_id: String) -> int:
 
 
 func _validate(candidate: Dictionary) -> bool:
+	var credits: Variant = candidate.get("credits")
+	var whole_credits: bool = credits is int or (credits is float and is_finite(credits) and credits == floor(credits))
 	return (
 		int(candidate.get("version", 0)) >= 1
-		and candidate.get("credits", null) is int
+		and whole_credits
 		and candidate.get("upgrades", null) is Dictionary
 		and str(candidate.get("mode", "")) in ["EXPLORER", "PATROL", "WARZONE"]
 	)
@@ -145,4 +167,5 @@ func _merge_defaults(candidate: Dictionary) -> Dictionary:
 					merged.upgrades[upgrade_id] = clampi(int(candidate[key][upgrade_id]), 0, 5)
 		else:
 			merged[key] = candidate[key]
+	merged.credits = int(merged.credits)
 	return merged
