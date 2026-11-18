@@ -6,6 +6,7 @@ signal discovery_reached(discovery_name: String)
 
 const SpaceObjectScript := preload("res://src/world/space_object.gd")
 const StationScript := preload("res://src/world/station.gd")
+const Celestial := preload("res://src/world/celestial_art.gd")
 
 var world_seed := 7355608
 var mode := "PATROL"
@@ -57,9 +58,9 @@ func _build_environment() -> void:
 	sky_material.sun_curve = 0.08
 	sky.sky_material = sky_material
 	environment.sky = sky
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_color = Color("#5f7694")
-	environment.ambient_light_energy = 0.28
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color("#8095ab")
+	environment.ambient_light_energy = 0.42
 	environment.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	world_environment.environment = environment
@@ -99,27 +100,24 @@ func _build_starfield(count: int) -> void:
 
 
 func _build_celestial_bodies() -> void:
-	_add_planet("Helios", Vector3(-1180, 320, -2050), 170.0, Color("#ffdf9a"), true)
-	var giant := _add_planet("Caligo", Vector3(940, -80, -1750), 135.0, Color("#9a806c"), false)
-	var ring := TorusMesh.new()
-	ring.inner_radius = 170.0
-	ring.outer_radius = 245.0
-	ring.rings = 64
-	ring.ring_segments = 8
-	VisualFactory.add_mesh(giant, ring, Vector3.ZERO, Vector3.ONE, VisualFactory.material(Color(0.61, 0.57, 0.48, 0.62), 0.0, 0.82, Color.BLACK, true), Vector3(70, 12, 0), "PlanetaryRings")
-	_add_planet("Nysa", Vector3(-520, 250, -1320), 72.0, Color("#455c68"), false)
-	_add_planet("Nysa Moon", Vector3(-390, 285, -1250), 19.0, Color("#aaa69c"), false)
+	var sun := _add_planet("Helios", Vector3(-1180, 320, -2050), 170.0, 3)
+	Celestial.corona(sun,170)
+	var giant := _add_planet("Caligo", Vector3(940, -80, -1750), 135.0, 2)
+	Celestial.rings(giant)
+	_add_planet("Nysa", Vector3(-520, 250, -1320), 72.0, 0)
+	_add_planet("Nysa Moon", Vector3(-390, 285, -1250), 22.0, 1)
 
 
-func _add_planet(body_name: String, body_position: Vector3, radius: float, color: Color, emissive: bool) -> Node3D:
+func _add_planet(body_name: String, body_position: Vector3, radius: float, kind: int) -> Node3D:
 	var root := Node3D.new()
 	root.name = body_name
 	root.position = body_position
 	add_child(root)
-	var glow := color * 1.4 if emissive else Color.BLACK
-	VisualFactory.add_mesh(root, VisualFactory.sphere(radius, 64, 32), Vector3.ZERO, Vector3.ONE, VisualFactory.material(color, 0.05, 0.78, glow), Vector3.ZERO, "Surface")
-	if not emissive:
-		VisualFactory.add_mesh(root, VisualFactory.sphere(radius * 1.018, 48, 24), Vector3.ZERO, Vector3.ONE, VisualFactory.material(Color(0.24, 0.55, 0.78, 0.09), 0.0, 0.2, Color("#184e73"), true), Vector3.ZERO, "Atmosphere")
+	var coat := Celestial.surface(kind)
+	if kind != 3:
+		coat.set_shader_parameter("sunward", body_position.direction_to(get_node("Helios").position))
+	var body := VisualFactory.add_mesh(root,VisualFactory.sphere(radius,64,32),Vector3.ZERO,Vector3.ONE,coat,Vector3.ZERO,"Surface")
+	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return root
 
 
@@ -146,7 +144,10 @@ func _spawn_asteroid_field(center: Vector3, spread: Vector3, count: int, minimum
 	for index in count:
 		var asteroid := SpaceObjectScript.new()
 		var radius := rng.randf_range(minimum_radius, maximum_radius)
-		asteroid.configure("ASTEROID", radius, world_seed + index + int(center.z))
+		var geology := SpaceObject.Art.CARBON if center.x < 0 else SpaceObject.Art.ICE
+		if index % 4 == 0:
+			geology = SpaceObject.Art.FRACTURED
+		asteroid.configure("ASTEROID", radius, world_seed + index + int(center.z),Vector3.ZERO,geology)
 		asteroid.position = center + Vector3(
 			rng.randf_range(-spread.x, spread.x),
 			rng.randf_range(-spread.y, spread.y),
@@ -159,6 +160,7 @@ func _spawn_asteroid_field(center: Vector3, spread: Vector3, count: int, minimum
 func _build_comets() -> void:
 	for index in 2:
 		var comet := SpaceObjectScript.new()
+		comet.illuminator = get_node("Helios")
 		comet.add_to_group("comets")
 		comet.configure("COMET", 9.0 + index * 3.0, world_seed + 9000 + index, Vector3(-8.0 - index * 3.0, 0.5, 17.0 + index * 2.0))
 		comet.position = Vector3(680 + index * 210, 210 - index * 130, -1450 - index * 260)

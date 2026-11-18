@@ -11,13 +11,19 @@ var drift := Vector3.ZERO
 var rotation_axis := Vector3.UP
 var rotation_speed := 0.1
 var reward := 45
+const Art := preload("res://src/world/rock_art.gd")
+var composition := Art.FRACTURED
+var nucleus: MeshInstance3D
+var illuminator: Node3D
+var tail_axis: Node3D
 
 
-func configure(kind: String, object_radius: float, seed_number: int, initial_velocity: Vector3 = Vector3.ZERO) -> void:
+func configure(kind: String, object_radius: float, seed_number: int, initial_velocity: Vector3 = Vector3.ZERO, geology: int = Art.FRACTURED) -> void:
 	object_kind = kind
 	radius = object_radius
 	seed_value = seed_number
 	drift = initial_velocity
+	composition = Art.ICE if kind == "COMET" else geology
 	health = radius * (10.0 if kind == "COMET" else 5.0)
 	reward = int(radius * (28.0 if kind == "COMET" else 8.0))
 
@@ -32,17 +38,16 @@ func _ready() -> void:
 	shape.radius = radius * 0.9
 	collision.shape = shape
 	add_child(collision)
-	var rock_color := Color("#7e817f") if object_kind != "COMET" else Color("#a8cbd2")
-	var rock := VisualFactory.add_mesh(
+	nucleus = VisualFactory.add_mesh(
 		self,
 		VisualFactory.asteroid_mesh(seed_value, radius, 12 if radius < 8.0 else 18, 18 if radius < 8.0 else 26),
 		Vector3.ZERO,
 		Vector3.ONE,
-		VisualFactory.material(rock_color, 0.12, 0.88),
+		Art.rock(composition),
 		Vector3.ZERO,
 		object_kind.capitalize() + "Mesh"
 	)
-	rock.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	nucleus.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	rotation_axis = Vector3(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0)).normalized()
@@ -52,10 +57,12 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	rotate(rotation_axis, rotation_speed * delta)
+	nucleus.rotate(rotation_axis, rotation_speed * delta)
 	velocity = drift
 	if drift.length_squared() > 0.0:
 		move_and_slide()
+	if tail_axis:
+		_point_tail()
 
 
 func damage(amount: float, source: Node = null) -> void:
@@ -68,14 +75,27 @@ func damage(amount: float, source: Node = null) -> void:
 
 
 func _build_comet_tail() -> void:
+	tail_axis = Node3D.new()
+	tail_axis.name = "AntiSolarAxis"
+	add_child(tail_axis)
+	var mat := ShaderMaterial.new()
+	mat.shader = preload("res://assets/shaders/comet_tail.gdshader")
+	var envelope := VisualFactory.cylinder(1.0, 0.12, 1.0, 24)
+	envelope.cap_top = false
+	envelope.cap_bottom = false
 	var tail := VisualFactory.add_mesh(
-		self,
-		VisualFactory.cylinder(0.1, radius * 0.62, radius * 8.0, 18),
-		Vector3(0, 0, radius * 4.4),
-		Vector3.ONE,
-		VisualFactory.material(Color(0.35, 0.78, 1.0, 0.22), 0.0, 0.1, Color("#4cbfe9"), true),
-		Vector3(90, 0, 0),
+		tail_axis, envelope,
+		Vector3.UP * radius * 6.0, Vector3(1.8,12.0,1.8)*radius,
+		mat, Vector3.ZERO,
 		"IonTail"
 	)
 	tail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_point_tail()
+
+
+func _point_tail() -> void:
+	if is_instance_valid(illuminator):
+		var away := illuminator.global_position.direction_to(global_position)
+		if away.length_squared() > 0.0:
+			tail_axis.global_basis = Basis(Quaternion(Vector3.UP, away))
 
