@@ -20,6 +20,10 @@ var reticle: FlightReticle
 var radar: FlightRadar
 var toast_time := 0.0
 var diagnostics_visible := false
+var navigation := preload("res://src/ui/navigation_overlay.gd").new()
+var destination := ""
+var recent_radio := "Flight command standing by."
+var log_label: Label
 
 
 func setup(player: PlayerFighter, game_mode: String, active_contract: Dictionary) -> void:
@@ -58,8 +62,8 @@ func _process(delta: float) -> void:
 	if contract.is_empty():
 		objective.text = "FREE FLIGHT"
 	else:
-		objective.text = "%s  •  %d/%d  •  %d CR" % [
-			str(contract.title).to_upper(), int(contract.progress), int(contract.target), int(contract.reward)
+		objective.text = "%s  ·  %d/%d  ·  %d CR\n%s" % [
+			str(contract.title).to_upper(), int(contract.progress), int(contract.target), int(contract.reward), contract.description
 		]
 	reticle.set_locked(fighter.lock_progress >= 1.0)
 	diagnostic_label.text = "FPS %d\nOBJECTS %d\nORIGIN %s" % [Engine.get_frames_per_second(), get_tree().get_node_count(), str(fighter.global_position.round())]
@@ -73,6 +77,7 @@ func set_context(message: String) -> void:
 
 
 func show_toast(message: String, duration: float = 3.0) -> void:
+	recent_radio = message
 	toast_label.text = message
 	toast_label.modulate.a = 1.0
 	toast_time = duration
@@ -82,7 +87,16 @@ func update_contract(value: Dictionary) -> void:
 	contract = value
 
 
+func set_destination(target: Node3D, caption: String) -> void:
+	navigation.target = target
+	navigation.destination = caption
+	radar.target = target
+	destination = caption
+
+
 func set_paused(value: bool) -> void:
+	if value:
+		log_label.text = "FLIGHT LOG\n%s\nDestination: %s\n%s / %s throttle · %s / %s bank · %s gear · %s dock\nLast radio: %s" % [contract.get("description", "Explore at your own pace."), destination if destination != "" else "None assigned", InputSetup.key_hint("throttle_up"), InputSetup.key_hint("throttle_down"), InputSetup.key_hint("roll_left"), InputSetup.key_hint("roll_right"), InputSetup.key_hint("toggle_gear"), InputSetup.key_hint("interact"), recent_radio]
 	pause_overlay.visible = value
 	if not value and pause_settings_overlay:
 		pause_settings_overlay.visible = false
@@ -98,6 +112,8 @@ func _build_interface() -> void:
 	root.name = "FlightInterface"
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(root)
+	navigation.fighter = fighter
+	root.add_child(navigation)
 
 	left_status = _make_label(root, 18, Color("#bfefff"))
 	left_status.position = Vector2(28, 26)
@@ -164,8 +180,8 @@ func _build_pause_overlay(root: Control) -> Control:
 	root.add_child(overlay)
 	var menu := VBoxContainer.new()
 	menu.set_anchors_preset(Control.PRESET_CENTER)
-	menu.position = Vector2(-180, -210)
-	menu.size = Vector2(360, 420)
+	menu.position = Vector2(-365, -285)
+	menu.size = Vector2(730, 570)
 	menu.add_theme_constant_override("separation", 14)
 	overlay.add_child(menu)
 	var title := _make_label(menu, 38, Color("#dff7ff"))
@@ -175,9 +191,11 @@ func _build_pause_overlay(root: Control) -> Control:
 	subtitle.text = "Deep Space Fighter"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	menu.add_child(HSeparator.new())
+	log_label = _make_label(menu, 17, Color("#c3dce2"))
+	log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_add_menu_button(menu, "RESUME FLIGHT", resume_requested.emit)
 	_add_menu_button(menu, "SETTINGS", _open_pause_settings)
-	_add_menu_button(menu, "RETURN TO HANGAR", exit_requested.emit)
+	_add_menu_button(menu, "RETURN TO COMMAND", exit_requested.emit)
 	overlay.visible = false
 	return overlay
 

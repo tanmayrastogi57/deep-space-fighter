@@ -3,6 +3,7 @@ class_name FlightRadar
 
 var fighter: PlayerFighter
 var range_meters := 650.0
+var target: Node3D
 
 
 func _ready() -> void:
@@ -26,20 +27,38 @@ func _draw() -> void:
 	draw_polyline(ship, Color("#72e6ff"), 2.0, true)
 	if fighter == null or not is_instance_valid(fighter):
 		return
+	draw_string(ThemeDB.fallback_font, Vector2(0, size.y + 12), "650 m   ^ ABOVE   v BELOW", HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, Color("#a5cfda"))
 	for hostile in get_tree().get_nodes_in_group("hostile"):
 		if hostile is not Node3D:
 			continue
 		var local: Vector3 = fighter.global_transform.basis.inverse() * (hostile.global_position - fighter.global_position)
-		var distance := Vector2(local.x, local.z).length()
+		var distance := local.length()
 		if distance > range_meters:
 			continue
 		var blip := center + Vector2(local.x, local.z) / range_meters * radius
 		draw_circle(blip, 3.5, Color("#ff5a55"))
+		_altitude(blip, local.y, Color("#ff958e"))
 	for dockable in get_tree().get_nodes_in_group("dockable"):
 		if dockable is not Node3D:
 			continue
 		var local: Vector3 = fighter.global_transform.basis.inverse() * (dockable.global_position - fighter.global_position)
-		var distance := Vector2(local.x, local.z).length()
+		var distance := local.length()
 		if distance <= range_meters:
 			var blip := center + Vector2(local.x, local.z) / range_meters * radius
 			draw_rect(Rect2(blip - Vector2.ONE * 3.5, Vector2.ONE * 7.0), Color("#58d8ff"), false, 1.5)
+			_altitude(blip, local.y, Color("#58d8ff"))
+	if is_instance_valid(target) and not target.is_queued_for_deletion():
+		var local := fighter.to_local(target.global_position)
+		var offset := Vector2(local.x, local.z) / range_meters * radius
+		var pos := center + offset.limit_length(radius)
+		var gold := Color("#ffcf66")
+		draw_polyline(PackedVector2Array([pos + Vector2(0,-5), pos + Vector2(5,0), pos + Vector2(0,5), pos + Vector2(-5,0), pos + Vector2(0,-5)]), gold, 2)
+		_altitude(pos, local.y, gold)
+
+
+func _altitude(pos: Vector2, height: float, color: Color) -> void:
+	if absf(height) < 12.0:
+		return
+	var sign_y := -signf(height)
+	var p := pos + Vector2(0, 8 * sign_y)
+	draw_polyline(PackedVector2Array([p + Vector2(-3, 0), p + Vector2(0, 4 * sign_y), p + Vector2(3, 0)]), color, 1.5)

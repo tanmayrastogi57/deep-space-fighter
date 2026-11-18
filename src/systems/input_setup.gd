@@ -44,6 +44,13 @@ static func apply_bindings(bindings: Dictionary) -> void:
 		_add_key(action_name, physical_code)
 
 
+static func key_hint(action: StringName) -> String:
+	for event in InputMap.action_get_events(action):
+		if event is InputEventKey:
+			return OS.get_keycode_string(event.physical_keycode)
+	return str(action)
+
+
 static func _add_key(action: StringName, keycode: Key) -> void:
 	if not InputMap.has_action(action):
 		InputMap.add_action(action)

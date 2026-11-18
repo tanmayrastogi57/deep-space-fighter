@@ -19,6 +19,11 @@ func _run() -> void:
 	_test_settings_validation()
 	_test_sector_streaming_math()
 	_test_sandbox()
+	var overlay := preload("res://src/ui/navigation_overlay.gd")
+	var bounds := Vector2(1280, 720)
+	_expect(overlay.edge_point(Vector2.RIGHT, bounds).x > 1100, "Offscreen right stays on the right")
+	_expect(overlay.edge_point(Vector2.UP, bounds).y == 100, "Above contact points toward top margin")
+	_expect(overlay.edge_point(Vector2.ZERO, bounds).y > 600, "Directly aft has an unambiguous fallback bearing")
 	if failures.is_empty():
 		print("PASS: %d deterministic checks" % checks)
 		Sound.shutdown()

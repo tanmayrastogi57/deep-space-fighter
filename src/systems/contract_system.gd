@@ -75,15 +75,15 @@ static func _title_for(kind: String) -> String:
 static func _description_for(kind: String, target_count: int) -> String:
 	match kind:
 		"NAVIGATION":
-			return "Reach the marked navigation beacon."
+			return "Fly through the gold marker at Asteria Relay."
 		"AEROBATICS":
 			return "Fly cleanly through %d maneuver gates." % target_count
 		"DISCOVERY":
-			return "Locate and scan %d hidden signals." % target_count
+			return "Pass within 32 m of %d uncharted signal(s) to scan." % target_count
 		"COMET":
 			return "Intercept and fragment the marked comet."
 		"ESCORT":
-			return "Keep the convoy safe through the hazard field."
+			return "Hold formation within 145 m of CSV Resolute for 25 seconds."
 		"ELIMINATION":
 			return "Destroy %d hostile fighters." % target_count
 	return "Explore the system."

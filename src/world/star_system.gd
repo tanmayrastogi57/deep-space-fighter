@@ -159,6 +159,7 @@ func _spawn_asteroid_field(center: Vector3, spread: Vector3, count: int, minimum
 func _build_comets() -> void:
 	for index in 2:
 		var comet := SpaceObjectScript.new()
+		comet.add_to_group("comets")
 		comet.configure("COMET", 9.0 + index * 3.0, world_seed + 9000 + index, Vector3(-8.0 - index * 3.0, 0.5, 17.0 + index * 2.0))
 		comet.position = Vector3(680 + index * 210, 210 - index * 130, -1450 - index * 260)
 		comet.destroyed.connect(_on_space_object_destroyed)

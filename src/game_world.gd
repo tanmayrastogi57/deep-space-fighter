@@ -21,6 +21,7 @@ var paused := false
 var escort_time := 0.0
 var objective_root: Node3D
 var sector_streamer: SectorStreamer
+var guidance_timer := 0.0
 
 
 func configure(game_mode: String, new_career: bool) -> void:
@@ -55,6 +56,7 @@ func _ready() -> void:
 	hud.resume_requested.connect(_set_paused.bind(false))
 	hud.exit_requested.connect(_exit_to_menu.bind(false))
 	add_child(hud)
+	_refresh_guidance()
 	hud.show_toast("%s MODE  •  SHIFT/CTRL THROTTLE  •  V CAMERA" % mode, 5.0)
 
 
@@ -76,6 +78,48 @@ func _process(delta: float) -> void:
 	_update_escort(delta)
 	sector_streamer.update_stream(logical_origin + fighter.global_position)
 	_maybe_shift_origin()
+	guidance_timer -= delta
+	if guidance_timer <= 0:
+		_refresh_guidance()
+		guidance_timer = 0.15
+
+
+func _refresh_guidance() -> void:
+	if not hud:
+		return
+	var target := _objective_target()
+	var title := ""
+	if is_instance_valid(target):
+		title = str(target.get_meta("nav_name", target.name))
+		if target is OrbitalStation:
+			title = target.station_name
+		elif target is EnemyFighter:
+			title = "Hostile fighter"
+		elif target is SpaceObject:
+			title = "Inbound comet"
+	hud.set_destination(target, title)
+
+
+func _objective_target() -> Node3D:
+	var kind := str(active_contract.get("type", ""))
+	if kind in ["NAVIGATION", "AEROBATICS"]:
+		for gate in objective_root.get_children():
+			if gate.visible:
+				return gate
+	if kind == "ESCORT":
+		return star_system.dockables[1]
+	var group := str({"COMET": "comets", "DISCOVERY": "discovery", "ELIMINATION": "hostile"}.get(kind, ""))
+	var best: Node3D
+	var best_distance := INF
+	if group != "":
+		for candidate in get_tree().get_nodes_in_group(group):
+			if candidate.is_queued_for_deletion() or (kind == "DISCOVERY" and str(candidate.name) in Career.data.discoveries):
+				continue
+			var distance := fighter.global_position.distance_squared_to(candidate.global_position)
+			if distance < best_distance:
+				best = candidate
+				best_distance = distance
+	return best
 
 
 func _spawn_hostiles() -> void:
@@ -119,12 +163,15 @@ func _build_objective_markers() -> void:
 	objective_root = Node3D.new()
 	objective_root.name = "ContractMarkers"
 	add_child(objective_root)
+	objective_root.global_position = -logical_origin
 	match str(active_contract.get("type", "")):
 		"NAVIGATION":
 			_add_gate(Vector3(-420, 120, -980), "NAV_POINT", 0, Color("#52d8ff"))
 		"AEROBATICS":
 			var target_count := int(active_contract.target)
 			for index in target_count:
+				if index < int(active_contract.progress):
+					continue
 				var angle := float(index) * 0.65
 				_add_gate(Vector3(sin(angle) * 170.0, 35.0 + cos(angle) * 75.0, -360.0 - index * 125.0), "AERO_RING", index, Color("#f6c65b"))
 		"DISCOVERY":
@@ -140,6 +187,7 @@ func _build_objective_markers() -> void:
 func _add_gate(gate_position: Vector3, event_type: String, index: int, color: Color) -> void:
 	var gate := Area3D.new()
 	gate.name = "%s_%d" % [event_type, index]
+	gate.set_meta("nav_name", "Asteria relay" if event_type == "NAV_POINT" else "Gate %d" % (index + 1))
 	gate.position = gate_position
 	var collision := CollisionShape3D.new()
 	var shape := SphereShape3D.new()
@@ -151,13 +199,15 @@ func _add_gate(gate_position: Vector3, event_type: String, index: int, color: Co
 	torus.outer_radius = 13.0
 	torus.rings = 32
 	torus.ring_segments = 8
-	VisualFactory.add_mesh(gate, torus, Vector3.ZERO, Vector3.ONE, VisualFactory.material(Color(color, 0.65), 0.2, 0.2, color, true), Vector3.ZERO, "Gate")
+	VisualFactory.add_mesh(gate, torus, Vector3.ZERO, Vector3.ONE, VisualFactory.material(Color(color, 0.65), 0.2, 0.2, color, true), Vector3(90, 0, 0), "Gate")
 	gate.body_entered.connect(_on_gate_entered.bind(event_type, gate))
 	objective_root.add_child(gate)
 
 
 func _on_gate_entered(body: Node3D, event_type: String, gate: Area3D) -> void:
 	if body != fighter or not gate.monitoring:
+		return
+	if event_type == "AERO_RING" and _objective_target() != gate:
 		return
 	gate.set_deferred("monitoring", false)
 	gate.visible = false
