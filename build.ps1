@@ -23,8 +23,8 @@ if ($parseOutput -match "SCRIPT ERROR|Failed to load script") {
     throw "Godot script validation failed."
 }
 
-function Invoke-FlightTest([string]$scene) {
-    $result = & $godotCommand --headless --path $projectRoot --quit-after 1800 $scene 2>&1 | Out-String
+function Invoke-FlightTest([string]$scene, [int]$frames = 1800) {
+    $result = & $godotCommand --headless --path $projectRoot --fixed-fps 60 --quit-after $frames $scene 2>&1 | Out-String
     $result | Write-Host
     if ($LASTEXITCODE -ne 0 -or $result -match "SCRIPT ERROR|(?m)^ERROR:" -or $result -notmatch "(?m)^PASS:") {
         throw "Godot test failed or did not finish: $scene"
@@ -34,6 +34,7 @@ function Invoke-FlightTest([string]$scene) {
 Invoke-FlightTest "res://tests_godot/test_runner.tscn"
 Invoke-FlightTest "res://tests_godot/smoke_test.tscn"
 Invoke-FlightTest "res://tests_godot/menu_flow.tscn"
+Invoke-FlightTest "res://tests_godot/flight_art_test.tscn" 7800
 
 $outputDirectory = Join-Path $projectRoot "dist\Deep Space Fighter"
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null

@@ -74,6 +74,27 @@ func _run() -> void:
 	var comet: Node3D = get_tree().get_first_node_in_group("comets")
 	survey_camera.look_at_from_position(comet.global_position + Vector3(30, 25, 125), comet.global_position + Vector3(20,0,0), Vector3.UP)
 	await _shot("comet")
+	# With only the sky visible, a translation without rotation must leave
+	# every star at the same pixel. Save both normal GPU frames for inspection.
+	if "--before" not in OS.get_cmdline_user_args():
+		survey_camera.cull_mask = 0
+		await _shot("stars-origin")
+		var sky_image := get_viewport().get_texture().get_image()
+		survey_camera.global_position += Vector3(0,12000,0)
+		await _shot("stars-12km")
+		var distant := get_viewport().get_texture().get_image()
+		if distant.get_data() != sky_image.get_data():
+			push_error("Star pixels changed after 12 km of pure translation")
+			errors += 1
+		var bright := 0
+		for y in range(0,sky_image.get_height(),3):
+			for x in range(0,sky_image.get_width(),3):
+				if sky_image.get_pixel(x,y).get_luminance() > .18:
+					bright += 1
+		if bright < 15:
+			push_error("Sky invariance capture has no visible starfield")
+			errors += 1
+		print("Sky translation check: ", bright, " bright samples, ", errors, " capture errors")
 	Sound.shutdown()
 	world.queue_free()
 	await get_tree().process_frame
