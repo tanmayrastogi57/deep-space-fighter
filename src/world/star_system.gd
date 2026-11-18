@@ -7,6 +7,7 @@ signal discovery_reached(discovery_name: String)
 const SpaceObjectScript := preload("res://src/world/space_object.gd")
 const StationScript := preload("res://src/world/station.gd")
 const Celestial := preload("res://src/world/celestial_art.gd")
+const Scenery := preload("res://src/world/scenic_sites.gd")
 
 var world_seed := 7355608
 var mode := "PATROL"
@@ -22,9 +23,9 @@ func setup(seed_value: int, game_mode: String) -> void:
 
 func _ready() -> void:
 	_build_environment()
-	_build_starfield(720)
 	_build_celestial_bodies()
 	_build_landmarks()
+	Scenery.launch_lane(self)
 	_build_asteroid_regions()
 	_build_comets()
 	_build_discoveries()
@@ -49,13 +50,10 @@ func _build_environment() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_SKY
 	var sky := Sky.new()
-	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color("#01030a")
-	sky_material.sky_horizon_color = Color("#01030a")
-	sky_material.ground_bottom_color = Color("#000106")
-	sky_material.ground_horizon_color = Color("#01030a")
-	sky_material.sun_angle_max = 1.0
-	sky_material.sun_curve = 0.08
+	var sky_material := ShaderMaterial.new()
+	sky_material.shader = preload("res://assets/shaders/deep_space.gdshader")
+	sky_material.set_shader_parameter("chart_seed",float(posmod(world_seed,4093)))
+	sky.radiance_size = Sky.RADIANCE_SIZE_64
 	sky.sky_material = sky_material
 	environment.sky = sky
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -73,30 +71,6 @@ func _build_environment() -> void:
 	star_light.shadow_enabled = true
 	star_light.rotation_degrees = Vector3(-32, -48, 0)
 	add_child(star_light)
-
-
-func _build_starfield(count: int) -> void:
-	var multi_mesh := MultiMesh.new()
-	multi_mesh.transform_format = MultiMesh.TRANSFORM_3D
-	multi_mesh.instance_count = count
-	var star_mesh := VisualFactory.sphere(0.36, 8, 4)
-	var star_material := VisualFactory.material(Color("#dff3ff"), 0.0, 1.0, Color("#b9e8ff"))
-	star_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	star_mesh.material = star_material
-	multi_mesh.mesh = star_mesh
-	for index in count:
-		var direction := Vector3(
-			rng.randf_range(-1.0, 1.0),
-			rng.randf_range(-1.0, 1.0),
-			rng.randf_range(-1.0, 1.0)
-		).normalized()
-		var distance := rng.randf_range(1300.0, 2600.0)
-		var size := rng.randf_range(0.35, 1.55)
-		multi_mesh.set_instance_transform(index, Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * size), direction * distance))
-	var stars := MultiMeshInstance3D.new()
-	stars.name = "StellarBackdrop"
-	stars.multimesh = multi_mesh
-	add_child(stars)
 
 
 func _build_celestial_bodies() -> void:
@@ -186,6 +160,7 @@ func _build_discoveries() -> void:
 		area.add_child(collision)
 		area.body_entered.connect(_on_discovery_body_entered.bind(site_name, area))
 		add_child(area)
+		Scenery.add_site(area,site_name,get_node("Caligo"))
 
 
 func _on_space_object_destroyed(object: SpaceObject, _source: Node) -> void:

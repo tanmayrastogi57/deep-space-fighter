@@ -123,7 +123,8 @@ func _test_settings_validation() -> void:
 func _test_sector_streaming_math() -> void:
 	_expect_equal(SectorStreamerScript.sector_for(Vector3(0, 100, 0), 900.0), Vector3i.ZERO, "Origin maps to the central sector")
 	_expect_equal(SectorStreamerScript.sector_for(Vector3(901, 0, -1), 900.0), Vector3i(1, 0, -1), "Sector mapping handles positive and negative coordinates")
-	_expect_equal(SectorStreamerScript.sector_key(Vector3i(-2, 0, 4)), "-2:4", "Sector keys are stable")
+	_expect_equal(SectorStreamerScript.sector_for(Vector3(0,-901,0),900),Vector3i(0,-2,0),"Negative altitude maps to a distinct sector")
+	_expect_equal(SectorStreamerScript.sector_key(Vector3i(-2, 0, 4)), "-2:0:4", "3D sector keys are stable")
 
 
 func _expect(condition: bool, message: String) -> void:

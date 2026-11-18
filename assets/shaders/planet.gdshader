@@ -42,7 +42,8 @@ void fragment() {
 	}
 	if (kind != 3) {
 		float daylight = smoothstep(-.18,.92,dot(p,normalize(sunward)));
-		ALBEDO *= mix(vec3(.16,.19,.25),vec3(1.0,.98,.94),daylight);
+		vec3 night = kind == 0 ? vec3(.33,.41,.49) : vec3(.19,.21,.26);
+		ALBEDO *= mix(night,vec3(1.0,.98,.94),daylight);
 		if (kind == 0) ALBEDO += vec3(.055,.14,.20)*limb*(.25+.75*daylight);
 	}
 }

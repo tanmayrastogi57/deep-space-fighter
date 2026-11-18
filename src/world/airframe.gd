@@ -53,15 +53,16 @@ static func cockpit(ship: Node3D) -> Dictionary:
 		beam(tub, Vector3(side*0.94,-0.6,-0.85), Vector3(side*0.72,0.70,-0.87), 0.035,0.05,trim,"CanopyBow")
 		beam(tub, Vector3(side*0.9,-0.56,-0.82), Vector3(side*0.67,-0.49,0.65),0.11,0.12,graphite,"Sill")
 	VisualFactory.add_mesh(tub, VisualFactory.box(Vector3(1.8,0.34,0.35)), Vector3(0,-0.71,-0.86),Vector3.ONE,graphite,Vector3(-12,0,0),"Dash")
+	VisualFactory.add_mesh(tub,VisualFactory.box(Vector3(1.62,.035,.16)),Vector3(0,-.50,-.79),Vector3.ONE,trim,Vector3(-8,0,0),"GlareShield")
 	var readouts: Array[Label3D] = []
 	for side in [-1.0,1.0]:
-		VisualFactory.add_mesh(tub, VisualFactory.box(Vector3(0.42,0.15,0.028)),Vector3(side*0.45,-0.60,-0.675),Vector3.ONE,display,Vector3(-12,0,0),"Instrument")
+		VisualFactory.add_mesh(tub, VisualFactory.box(Vector3(0.42,0.15,0.028)),Vector3(side*0.45,-0.56,-0.675),Vector3.ONE,display,Vector3(-12,0,0),"Instrument")
 		var label := Label3D.new()
 		label.pixel_size = 0.001
 		label.font_size = 32
 		label.outline_size = 0
 		label.modulate = Color("#9cdfd5")
-		label.position = Vector3(side*0.45,-0.588,-0.651)
+		label.position = Vector3(side*0.45,-0.55,-0.651)
 		label.rotation.x = deg_to_rad(-12)
 		tub.add_child(label)
 		readouts.append(label)

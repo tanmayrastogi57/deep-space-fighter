@@ -121,22 +121,27 @@ static func build_fighter(parent: Node3D, hostile: bool = false) -> Dictionary:
 	engine_material.set_shader_parameter("tint", engine_color)
 	var plumes: Array[Node3D] = []
 	var frame := preload("res://src/world/airframe.gd")
+	var hot_core := ShaderMaterial.new()
+	hot_core.shader = preload("res://assets/shaders/nozzle.gdshader")
+	hot_core.set_shader_parameter("glow",engine_color)
 
 	add_mesh(root, frame.fuselage(), Vector3.ZERO, Vector3.ONE, hull, Vector3.ZERO, "MainHull")
 	add_mesh(root, delta_wing_mesh(9.3, 4.7, 0.18), Vector3(0, -0.08, 0.34), Vector3.ONE, hull, Vector3.ZERO, "MainWing")
-	add_mesh(root, box(Vector3(2.4, 0.1, 1.25)), Vector3(0, 0.26, 2.62), Vector3.ONE, panels, Vector3(0, 0, 0), "TailPlane")
+	add_mesh(root, delta_wing_mesh(2.7,1.26,0.1), Vector3(0, 0.26, 2.52), Vector3.ONE, panels, Vector3.ZERO, "TailPlane")
 	add_mesh(root, sphere(0.72, 28, 14), Vector3(0, 0.48, -1.16), Vector3(0.72, 0.52, 1.45), canopy, Vector3.ZERO, "Canopy")
 
 	for side in [-1.0, 1.0]:
 		var fin := add_mesh(root, delta_wing_mesh(1.1,2.3,0.14), Vector3(side*1.19,0.85,1.95), Vector3(2.25,1,1), hull, Vector3(-14,0,side*62), "CantedFin")
 		frame.beam(root, Vector3(side*1.4,0.05,1.25),Vector3(side*3.82,0.05,1.61),0.12,0.025,accents,"ElevonTrim")
 		frame.beam(root, fin.position + Vector3(side*0.25,0.48,0.40), fin.position + Vector3(side*0.34,0.68,0.43),0.09,0.04,accents,"FinTip")
+		for vent in 3:
+			frame.beam(root,Vector3(side*.32,.54,0.10+vent*.30),Vector3(side*.76,.49,.22+vent*.30),.065,.035,panels,"HeatVent")
 		add_mesh(root, cylinder(0.46, 0.52, 3.15), Vector3(side * 1.52, -0.05, 1.34), Vector3.ONE, panels, Vector3(90, 0, 0), "EnginePod")
 		var cowl := cylinder(0.46,0.52,0.67,16)
 		cowl.cap_top = false
 		accents.cull_mode = BaseMaterial3D.CULL_DISABLED
 		add_mesh(root,cowl, Vector3(side*1.52,-0.05,3.05),Vector3.ONE,accents,Vector3(90,0,0),"NozzleLip")
-		add_mesh(root,cylinder(0.34,0.34,0.05,16),Vector3(side*1.52,-0.05,2.98),Vector3.ONE,material(engine_color.darkened(0.55),0.2,0.45,engine_color.darkened(0.42)),Vector3(90,0,0),"HotCore")
+		add_mesh(root,cylinder(0.34,0.34,0.05,16),Vector3(side*1.52,-0.05,2.98),Vector3.ONE,hot_core,Vector3(90,0,0),"HotCore")
 		var nozzle := Node3D.new()
 		nozzle.name = "ExhaustPort" if side < 0 else "ExhaustStarboard"
 		nozzle.position = Vector3(side*1.52,-0.05,3.15)

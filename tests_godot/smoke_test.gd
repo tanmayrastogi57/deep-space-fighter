@@ -26,7 +26,7 @@ func _run() -> void:
 	_check(get_tree().get_nodes_in_group("hostile").size() == 4, "Patrol mode spawns four hostiles")
 	_check(get_tree().get_nodes_in_group("damageable").size() >= 50, "Detailed hazard field is populated")
 	_check(world.hud != null, "Flight HUD exists")
-	_check(world.sector_streamer.active_sectors.size() == 9, "Nine nearby sectors are streamed")
+	_check(world.sector_streamer.active_sectors.size() == 27, "A bounded 3D neighborhood is streamed")
 	_check(not world.active_contract.is_empty(), "Career contract exists")
 	_check(world.paused and world.hud.operations.visible and not world.fighter.can_process(), "Preflight holds the ship")
 	var enemy: Node3D = get_tree().get_first_node_in_group("hostile")

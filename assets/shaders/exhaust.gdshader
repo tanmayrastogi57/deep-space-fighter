@@ -7,5 +7,5 @@ void fragment() {
 	float core = pow(1.0 - aft, 2.2);
 	float cells = 0.85 + 0.15 * cos(aft * 21.0);
 	ALBEDO = mix(tint.rgb, vec3(0.9, 0.93, 1.0), core);
-	ALPHA = cells * (1.0 - smoothstep(0.0, 1.0, aft)) * 0.72;
+	ALPHA = cells * (1.0 - smoothstep(0.0, 1.0, aft)) * 0.51;
 }

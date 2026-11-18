@@ -64,6 +64,8 @@ Keyboard controls can be rebound from Settings. Duplicate bindings are rejected,
 
 ## World and systems
 
+Press **V** to switch from chase to a glass-free cockpit sightline with live instruments. Asteria's paired departure lamps lead into two different belts. Look for the broken dish at Silent Relay, the fractured sheets at Glass Horizon, and the survey pylons framing Caligo's rings at the Overlook. Stars stay distant as you climb or descend; asteroid sectors load around the ship on all three axes.
+
 - Authored delta-wing fighter with cockpit, engine pods, hardpoints, emissive thrusters, and functional landing gear
 - Cockpit, close chase, far chase, rear-view, mouse orbit, and speed-sensitive field of view
 - Assisted aircraft-like space physics with optional inertial drift
