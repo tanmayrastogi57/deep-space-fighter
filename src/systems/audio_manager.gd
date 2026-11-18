@@ -54,6 +54,8 @@ func set_engine_throttle(value: float) -> void:
 
 
 func play_effect(effect: StringName, strength: float = 1.0) -> void:
+	if engine_player == null:
+		return
 	var player := AudioStreamPlayer.new()
 	player.stream = _build_effect(effect, strength)
 	player.volume_db = linear_to_db(maxf(0.001, float(Settings.data.get("effects_volume", 0.85))))

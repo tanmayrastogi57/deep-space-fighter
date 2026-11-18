@@ -93,7 +93,7 @@ func _physics_process(delta: float) -> void:
 	var yaw_input := Input.get_axis("yaw_left", "yaw_right")
 	var authority := lerpf(0.56, 1.0, throttle)
 	rotate_object_local(Vector3.RIGHT, pitch_input * pitch_rate * authority * delta)
-	rotate_object_local(Vector3.FORWARD, -roll_input * roll_rate * authority * delta)
+	rotate_object_local(Vector3.FORWARD, roll_input * roll_rate * authority * delta)
 	rotate_object_local(Vector3.UP, -yaw_input * yaw_rate * authority * delta)
 	transform.basis = transform.basis.orthonormalized()
 	var forward := -global_transform.basis.z

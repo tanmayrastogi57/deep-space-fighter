@@ -4,6 +4,7 @@ class_name FlightHUD
 signal resume_requested
 signal exit_requested
 signal settings_requested
+signal operations_action(action: String)
 
 var fighter: PlayerFighter
 var mode := "PATROL"
@@ -24,6 +25,9 @@ var navigation := preload("res://src/ui/navigation_overlay.gd").new()
 var destination := ""
 var recent_radio := "Flight command standing by."
 var log_label: Label
+var operations: ColorRect
+var operations_body: VBoxContainer
+var abandon_button: Button
 
 
 func setup(player: PlayerFighter, game_mode: String, active_contract: Dictionary) -> void:
@@ -60,7 +64,7 @@ func _process(delta: float) -> void:
 		]
 	)
 	if contract.is_empty():
-		objective.text = "FREE FLIGHT"
+		objective.text = "FREE FLIGHT · UNSAVED" if Career.sandbox else "NO ASSIGNMENT · Dock at the marked station for work."
 	else:
 		objective.text = "%s  ·  %d/%d  ·  %d CR\n%s" % [
 			str(contract.title).to_upper(), int(contract.progress), int(contract.target), int(contract.reward), contract.description
@@ -96,6 +100,7 @@ func set_destination(target: Node3D, caption: String) -> void:
 
 func set_paused(value: bool) -> void:
 	if value:
+		abandon_button.visible = not contract.is_empty() and not Career.sandbox
 		log_label.text = "FLIGHT LOG\n%s\nDestination: %s\n%s / %s throttle · %s / %s bank · %s gear · %s dock\nLast radio: %s" % [contract.get("description", "Explore at your own pace."), destination if destination != "" else "None assigned", InputSetup.key_hint("throttle_up"), InputSetup.key_hint("throttle_down"), InputSetup.key_hint("roll_left"), InputSetup.key_hint("roll_right"), InputSetup.key_hint("toggle_gear"), InputSetup.key_hint("interact"), recent_radio]
 	pause_overlay.visible = value
 	if not value and pause_settings_overlay:
@@ -169,6 +174,41 @@ func _build_interface() -> void:
 
 	pause_overlay = _build_pause_overlay(root)
 	pause_settings_overlay = _build_pause_settings(root)
+	operations = ColorRect.new()
+	operations.color = Color("#081420f5")
+	operations.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	operations.process_mode = Node.PROCESS_MODE_ALWAYS
+	root.add_child(operations)
+	var center := CenterContainer.new()
+	operations.add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	operations_body = VBoxContainer.new()
+	operations_body.custom_minimum_size.x = 710
+	operations_body.add_theme_constant_override("separation", 12)
+	center.add_child(operations_body)
+	operations.hide()
+
+
+func show_operations(heading: String, brief: String, actions: Dictionary) -> void:
+	for child in operations_body.get_children():
+		operations_body.remove_child(child)
+		child.queue_free()
+	_make_label(operations_body, 15, Color("#7bcee3")).text = "ASTERIA  /  FLIGHT COMMAND"
+	_make_label(operations_body, 32, Color.WHITE).text = heading
+	var text_label := _make_label(operations_body, 19, Color("#cfdfeb"))
+	text_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text_label.text = brief
+	operations.show()
+	var first := true
+	for action in actions:
+		var button := Button.new()
+		button.text = actions[action]
+		button.custom_minimum_size = Vector2(0, 48)
+		operations_body.add_child(button)
+		button.pressed.connect(operations_action.emit.bind(action))
+		if first:
+			button.grab_focus()
+			first = false
 
 
 func _build_pause_overlay(root: Control) -> Control:
@@ -195,6 +235,8 @@ func _build_pause_overlay(root: Control) -> Control:
 	log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_add_menu_button(menu, "RESUME FLIGHT", resume_requested.emit)
 	_add_menu_button(menu, "SETTINGS", _open_pause_settings)
+	_add_menu_button(menu, "ABANDON ASSIGNMENT…", operations_action.emit.bind("abandon_prompt"))
+	abandon_button = menu.get_child(-1)
 	_add_menu_button(menu, "RETURN TO COMMAND", exit_requested.emit)
 	overlay.visible = false
 	return overlay

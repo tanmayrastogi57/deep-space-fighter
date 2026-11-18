@@ -315,6 +315,8 @@ func _build_hangar() -> void:
 	panel.add_child(stack)
 	var heading := _label("ASTERIA FIGHTER HANGAR", 34, Color("#e7f7ff"))
 	stack.add_child(heading)
+	var chapter := _label(preload("res://src/systems/first_chapter.gd").milestones(int(Career.data.chapter_step), bool(Career.data.qualification_waived)), 17, Color("#b8d7e4"))
+	stack.add_child(chapter)
 	credits_label = _label("", 19, Color("#f1ca72"))
 	stack.add_child(credits_label)
 	var summary := _label("One airframe. Eight upgrade paths. Maximum level 5.", 15, Color("#829fab"))

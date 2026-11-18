@@ -43,6 +43,8 @@ func default_career() -> Dictionary:
 		"missiles": 8,
 		"discoveries": [],
 		"completed_contracts": 0,
+		"chapter_step": 0,
+		"qualification_waived": false,
 		"active_contract": {},
 		"upgrades": {
 			"engine": 0,
@@ -168,4 +170,6 @@ func _merge_defaults(candidate: Dictionary) -> Dictionary:
 		else:
 			merged[key] = candidate[key]
 	merged.credits = int(merged.credits)
+	# Existing careers keep their assignment and gain access to the survey.
+	merged.chapter_step = clampi(int(candidate.get("chapter_step", 3)), 0, 4)
 	return merged

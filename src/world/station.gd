@@ -22,7 +22,7 @@ func _ready() -> void:
 		_build_station()
 	dock_marker = Marker3D.new()
 	dock_marker.name = "DockMarker"
-	dock_marker.position = Vector3(0, 5.2 if carrier else -13.0, -2.0 if carrier else 0.0)
+	dock_marker.position = Vector3(0, 5.2, -2.0) if carrier else Vector3(0, -18, 28)
 	dock_marker.rotation_degrees = Vector3.ZERO
 	add_child(dock_marker)
 	var beacon := OmniLight3D.new()

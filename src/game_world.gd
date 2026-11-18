@@ -8,6 +8,7 @@ const FighterScript := preload("res://src/player/fighter.gd")
 const EnemyScript := preload("res://src/ai/enemy_fighter.gd")
 const HUDScript := preload("res://src/ui/hud.gd")
 const StreamerScript := preload("res://src/world/sector_streamer.gd")
+const Chapter := preload("res://src/systems/first_chapter.gd")
 
 var mode := "PATROL"
 var starting_new := false
@@ -22,6 +23,7 @@ var escort_time := 0.0
 var objective_root: Node3D
 var sector_streamer: SectorStreamer
 var guidance_timer := 0.0
+var panel := ""
 
 
 func configure(game_mode: String, new_career: bool) -> void:
@@ -34,17 +36,21 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	name = "FlightSession"
 	star_system = StarSystemScript.new()
+	star_system.process_mode = Node.PROCESS_MODE_PAUSABLE
 	star_system.setup(world_seed, mode)
 	star_system.object_destroyed.connect(_on_space_object_destroyed)
 	star_system.discovery_reached.connect(_on_discovery)
 	add_child(star_system)
 
 	fighter = FighterScript.new()
+	fighter.process_mode = Node.PROCESS_MODE_PAUSABLE
+	fighter.throttle = 0
 	fighter.position = Vector3(0, 3, 24)
 	fighter.interact_requested.connect(_on_interact)
 	fighter.destroyed.connect(_on_player_destroyed)
 	add_child(fighter)
 	sector_streamer = StreamerScript.new()
+	sector_streamer.process_mode = Node.PROCESS_MODE_PAUSABLE
 	sector_streamer.setup(world_seed)
 	add_child(sector_streamer)
 	sector_streamer.update_stream(fighter.global_position)
@@ -55,12 +61,97 @@ func _ready() -> void:
 	hud.setup(fighter, mode, active_contract)
 	hud.resume_requested.connect(_set_paused.bind(false))
 	hud.exit_requested.connect(_exit_to_menu.bind(false))
+	hud.operations_action.connect(_operations_action)
 	add_child(hud)
 	_refresh_guidance()
-	hud.show_toast("%s MODE  •  SHIFT/CTRL THROTTLE  •  V CAMERA" % mode, 5.0)
+	_preflight()
+
+
+func _exit_tree() -> void:
+	if paused and get_tree():
+		get_tree().paused = false
+
+
+func _preflight() -> void:
+	panel = "preflight"
+	_set_paused(true)
+	hud.pause_overlay.hide()
+	var text := "%s preset. Flight is on hold until you launch.\n\n" % mode.capitalize()
+	text += str(active_contract.get("description", "No assignment. Explore freely.")) + "\n\n"
+	text += "Gold diamond: destination. Cyan square: dock.\n%s / %s: throttle. %s / %s: bank. Mouse: look. Esc: flight log." % [InputSetup.key_hint("throttle_up"), InputSetup.key_hint("throttle_down"), InputSetup.key_hint("roll_left"), InputSetup.key_hint("roll_right")]
+	var actions := {"launch": "LAUNCH SORTIE"}
+	if active_contract.get("type") == "QUALIFICATION":
+		actions.skip = "SKIP QUALIFICATION · Experienced pilot"
+	actions.command = "BACK TO COMMAND"
+	hud.show_operations("Practice sortie · no save" if Career.sandbox else "Preflight briefing", text, actions)
+
+
+func _operations_action(action: String) -> void:
+	match action:
+		"launch":
+			panel = ""
+			hud.operations.hide()
+			_set_paused(false)
+			hud.show_toast("Flight released · Esc opens your flight log.")
+		"skip":
+			_waive_qualification()
+			_preflight()
+		"command":
+			_exit_to_menu()
+		"abandon_prompt":
+			panel = "abandon"
+			hud.pause_overlay.hide()
+			hud.show_operations("Abandon assignment?", "Partial progress is discarded. Earned credits stay in your wallet.", {"cancel_abandon": "KEEP ASSIGNMENT", "abandon": "ABANDON"})
+		"cancel_abandon":
+			panel = ""
+			hud.operations.hide()
+			_set_paused(true)
+		"abandon":
+			if active_contract.get("type") == "QUALIFICATION":
+				_waive_qualification()
+			_set_assignment({})
+			_operations_action("launch")
+			hud.show_toast("Assignment cleared · visit a dock for work.")
+
+
+func _waive_qualification() -> void:
+	Career.data.qualification_waived = true
+	Career.data.chapter_step = Chapter.LICENSED
+	_set_assignment(Chapter.mission(Chapter.LICENSED))
+
+
+func _set_assignment(job: Dictionary) -> void:
+	active_contract = job
+	Career.data.active_contract = job
+	escort_time = 0
+	Career.save_atomic()
+	# Area enter signals may arrive while the physics server flushes queries.
+	call_deferred("_build_objective_markers")
+	if hud:
+		hud.update_contract(job)
+
+
+func _advance_chapter(step: int) -> void:
+	Career.data.chapter_step = step
+	if step == Chapter.LICENSED or step == Chapter.FINISHED:
+		Career.data.credits = int(Career.data.credits) + int(active_contract.reward)
+	var job := Chapter.mission(step)
+	_set_assignment(job)
+	if step == Chapter.FINISHED:
+		hud.show_toast("Chapter complete · Caligo charted · +1100 CR. Free roam remains open.", 6)
+	elif step == Chapter.LICENSED:
+		hud.show_toast("Qualified · Survey licence issued · +800 CR", 5)
+	else:
+		hud.show_toast(job.description, 4)
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if panel != "":
+		if event.is_action_pressed("pause"):
+			if panel == "abandon":
+				_operations_action("cancel_abandon")
+			get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause"):
 		_set_paused(not paused)
 		get_viewport().set_input_as_handled()
@@ -74,6 +165,12 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if paused or fighter == null or not is_instance_valid(fighter):
 		return
+	if active_contract.get("type") == "QUALIFICATION" and int(Career.data.chapter_step) == 0 and fighter.throttle >= 0.2:
+		_advance_chapter(1)
+	if active_contract.get("type") == "OVERLOOK":
+		var overlook := _objective_target()
+		if overlook and fighter.global_position.distance_to(overlook.global_position) < 32:
+			_advance_chapter(Chapter.FINISHED)
 	_update_docking_prompt()
 	_update_escort(delta)
 	sector_streamer.update_stream(logical_origin + fighter.global_position)
@@ -102,7 +199,13 @@ func _refresh_guidance() -> void:
 
 func _objective_target() -> Node3D:
 	var kind := str(active_contract.get("type", ""))
-	if kind in ["NAVIGATION", "AEROBATICS"]:
+	if kind == "QUALIFICATION" and int(Career.data.chapter_step) == 2:
+		return star_system.dockables[0]
+	if kind == "OVERLOOK":
+		return star_system.get_node_or_null("Caligo Overlook")
+	if kind == "" and not Career.sandbox:
+		return star_system.nearest_dock(fighter)
+	if kind in ["NAVIGATION", "AEROBATICS", "QUALIFICATION"]:
 		for gate in objective_root.get_children():
 			if gate.visible:
 				return gate
@@ -132,6 +235,7 @@ func _spawn_hostiles() -> void:
 	rng.seed = world_seed + 4401
 	for index in count:
 		var enemy := EnemyScript.new()
+		enemy.process_mode = Node.PROCESS_MODE_PAUSABLE
 		enemy.setup(fighter, world_seed + 500 + index, mode == "WARZONE" and index >= 5)
 		enemy.position = Vector3(
 			rng.randf_range(-360.0, 360.0),
@@ -147,8 +251,8 @@ func _prepare_contract() -> void:
 		active_contract = {}
 		_build_objective_markers()
 		return
-	if starting_new or Career.data.get("active_contract", {}).is_empty():
-		active_contract = ContractSystem.generate(mode, world_seed, int(Career.data.get("completed_contracts", 0)))
+	if int(Career.data.chapter_step) < Chapter.LICENSED:
+		active_contract = Chapter.mission(int(Career.data.chapter_step))
 	else:
 		active_contract = Career.data.active_contract.duplicate(true)
 	Career.data.mode = mode
@@ -165,6 +269,9 @@ func _build_objective_markers() -> void:
 	add_child(objective_root)
 	objective_root.global_position = -logical_origin
 	match str(active_contract.get("type", "")):
+		"QUALIFICATION":
+			if int(Career.data.chapter_step) <= 1:
+				_add_gate(Vector3(-120, 32, -260), "TRAINING_GATE", 0, Color("#ffcf66"))
 		"NAVIGATION":
 			_add_gate(Vector3(-420, 120, -980), "NAV_POINT", 0, Color("#52d8ff"))
 		"AEROBATICS":
@@ -188,6 +295,8 @@ func _add_gate(gate_position: Vector3, event_type: String, index: int, color: Co
 	var gate := Area3D.new()
 	gate.name = "%s_%d" % [event_type, index]
 	gate.set_meta("nav_name", "Asteria relay" if event_type == "NAV_POINT" else "Gate %d" % (index + 1))
+	if event_type == "TRAINING_GATE":
+		gate.set_meta("nav_name", "Asteria training gate")
 	gate.position = gate_position
 	var collision := CollisionShape3D.new()
 	var shape := SphereShape3D.new()
@@ -205,7 +314,12 @@ func _add_gate(gate_position: Vector3, event_type: String, index: int, color: Co
 
 
 func _on_gate_entered(body: Node3D, event_type: String, gate: Area3D) -> void:
-	if body != fighter or not gate.monitoring:
+	if paused or body != fighter or not gate.visible or not gate.monitoring:
+		return
+	if event_type == "TRAINING_GATE":
+		if active_contract.get("type") == "QUALIFICATION" and int(Career.data.chapter_step) == 1:
+			gate.hide()
+			_advance_chapter(2)
 		return
 	if event_type == "AERO_RING" and _objective_target() != gate:
 		return
@@ -258,12 +372,7 @@ func _complete_contract() -> void:
 	Career.data.completed_contracts = int(Career.data.completed_contracts) + 1
 	if hud:
 		hud.show_toast("CONTRACT COMPLETE  +%d CR" % reward, 5.0)
-	active_contract = ContractSystem.generate(mode, world_seed, int(Career.data.completed_contracts))
-	Career.data.active_contract = active_contract
-	Career.save_atomic()
-	if hud:
-		hud.update_contract(active_contract)
-	_build_objective_markers()
+	_set_assignment({})
 
 
 func _update_escort(delta: float) -> void:
@@ -297,6 +406,8 @@ func _update_docking_prompt() -> void:
 
 
 func _on_interact() -> void:
+	if paused:
+		return
 	var nearest := star_system.nearest_dock(fighter)
 	if nearest != null and nearest.can_dock(fighter):
 		fighter.dock_at(nearest.dock_transform())
@@ -304,6 +415,8 @@ func _on_interact() -> void:
 		Career.save_atomic()
 		if hud:
 			hud.show_toast("DOCKED  •  REPAIRED  •  REARMED", 4.0)
+		if active_contract.get("type") == "QUALIFICATION" and int(Career.data.chapter_step) == 2 and nearest == star_system.dockables[0]:
+			_advance_chapter(Chapter.LICENSED)
 
 
 func _on_player_destroyed() -> void:
