@@ -24,6 +24,8 @@ var objective_root: Node3D
 var sector_streamer: SectorStreamer
 var guidance_timer := 0.0
 var panel := ""
+var board_offers: Array[Dictionary] = []
+var docked := false
 
 
 func configure(game_mode: String, new_career: bool) -> void:
@@ -89,6 +91,7 @@ func _preflight() -> void:
 func _operations_action(action: String) -> void:
 	match action:
 		"launch":
+			docked = false
 			panel = ""
 			hud.operations.hide()
 			_set_paused(false)
@@ -103,6 +106,9 @@ func _operations_action(action: String) -> void:
 			hud.pause_overlay.hide()
 			hud.show_operations("Abandon assignment?", "Partial progress is discarded. Earned credits stay in your wallet.", {"cancel_abandon": "KEEP ASSIGNMENT", "abandon": "ABANDON"})
 		"cancel_abandon":
+			if docked:
+				_open_board()
+				return
 			panel = ""
 			hud.operations.hide()
 			_set_paused(true)
@@ -110,8 +116,51 @@ func _operations_action(action: String) -> void:
 			if active_contract.get("type") == "QUALIFICATION":
 				_waive_qualification()
 			_set_assignment({})
+			if docked:
+				_open_board()
+				return
 			_operations_action("launch")
 			hud.show_toast("Assignment cleared · visit a dock for work.")
+		_:
+			if panel == "board" and action.begins_with("job:") and active_contract.is_empty():
+				var index := action.trim_prefix("job:").to_int()
+				if index >= 0 and index < board_offers.size():
+					var job := board_offers[index]
+					_set_assignment(job)
+					_operations_action("launch")
+					hud.show_toast("Accepted · " + str(job.description), 5)
+
+
+func _open_board() -> void:
+	panel = "board"
+	docked = true
+	_set_paused(true)
+	hud.pause_overlay.hide()
+	var actions := {}
+	var brief := "Docked at %s · Hull, shields and stores replenished." % Career.data.docked_at
+	board_offers.clear()
+	if active_contract.is_empty():
+		var sites := 0
+		for site in get_tree().get_nodes_in_group("discovery"):
+			if str(site.name) not in Career.data.discoveries:
+				sites += 1
+		var supply := {"DISCOVERY": sites, "COMET": get_tree().get_nodes_in_group("comets").size(), "ESCORT": 1, "ELIMINATION": get_tree().get_nodes_in_group("hostile").size()}
+		board_offers = ContractSystem.board(mode, world_seed, int(Career.data.completed_contracts), supply)
+		if int(Career.data.chapter_step) == Chapter.LICENSED:
+			board_offers.resize(2)
+			board_offers.push_front(Chapter.mission(Chapter.LICENSED))
+		brief += "\nPick a job to launch, or depart without one. No fee to decline."
+		for i in board_offers.size():
+			var job := board_offers[i]
+			actions["job:%d" % i] = "%s  ·  %d CR\n%s" % [job.title, int(job.reward), job.description]
+	else:
+		brief += "\n\nCurrent assignment: %s\n%s" % [active_contract.title, active_contract.description]
+		actions.launch = "CONTINUE ASSIGNMENT"
+		actions.abandon_prompt = "CHANGE ASSIGNMENT…"
+	if not actions.has("launch"):
+		actions.launch = "DEPART WITHOUT A JOB"
+	actions.command = "RETURN TO COMMAND"
+	hud.show_operations("Station contract board", brief, actions)
 
 
 func _waive_qualification() -> void:
@@ -189,7 +238,7 @@ func _refresh_guidance() -> void:
 	if is_instance_valid(target):
 		title = str(target.get_meta("nav_name", target.name))
 		if target is OrbitalStation:
-			title = target.station_name
+			title = "Dock · " + target.station_name if active_contract.get("type") != "ESCORT" else target.station_name
 		elif target is EnemyFighter:
 			title = "Hostile fighter"
 		elif target is SpaceObject:
@@ -255,6 +304,9 @@ func _prepare_contract() -> void:
 		active_contract = Chapter.mission(int(Career.data.chapter_step))
 	else:
 		active_contract = Career.data.active_contract.duplicate(true)
+		var kind := str(active_contract.get("type", ""))
+		if (mode == "EXPLORER" and kind == "ESCORT") or (mode != "WARZONE" and kind == "ELIMINATION"):
+			active_contract = {}
 	Career.data.mode = mode
 	Career.data.active_contract = active_contract
 	Career.save_atomic()
@@ -314,7 +366,7 @@ func _add_gate(gate_position: Vector3, event_type: String, index: int, color: Co
 
 
 func _on_gate_entered(body: Node3D, event_type: String, gate: Area3D) -> void:
-	if paused or body != fighter or not gate.visible or not gate.monitoring:
+	if paused or body != fighter or gate.get_parent() != objective_root or not gate.visible or not gate.monitoring:
 		return
 	if event_type == "TRAINING_GATE":
 		if active_contract.get("type") == "QUALIFICATION" and int(Career.data.chapter_step) == 1:
@@ -329,6 +381,9 @@ func _on_gate_entered(body: Node3D, event_type: String, gate: Area3D) -> void:
 
 
 func _on_space_object_destroyed(kind: String) -> void:
+	if Career.sandbox:
+		hud.show_toast("%s fragmented · Practice" % kind.capitalize())
+		return
 	if kind == "COMET":
 		_record_contract_event("COMET_DESTROYED")
 	else:
@@ -357,6 +412,8 @@ func _on_discovery(site_name: String) -> void:
 
 
 func _record_contract_event(event_type: String) -> void:
+	if not ContractSystem._event_matches(str(active_contract.get("type", "")), event_type):
+		return
 	if ContractSystem.record_progress(active_contract, event_type):
 		_complete_contract()
 	else:
@@ -396,9 +453,9 @@ func _update_docking_prompt() -> void:
 	var distance := nearest.distance_to_dock(fighter)
 	if distance < 95.0:
 		if nearest.can_dock(fighter):
-			hud.set_context("F  DOCK WITH %s" % nearest.station_name.to_upper())
+			hud.set_context("%s  DOCK WITH %s" % [InputSetup.key_hint("interact"), nearest.station_name.to_upper()])
 		elif not fighter.landing_gear:
-			hud.set_context("G  DEPLOY LANDING GEAR  •  %dm" % int(distance))
+			hud.set_context("SLOW BELOW 70 m/s FOR GEAR" if fighter.velocity.length() > 70 else "%s  DEPLOY LANDING GEAR  •  %dm" % [InputSetup.key_hint("toggle_gear"), int(distance)])
 		else:
 			hud.set_context("REDUCE SPEED BELOW 28 m/s  •  %dm" % int(distance))
 	elif str(active_contract.get("type", "")) != "ESCORT":
@@ -417,6 +474,8 @@ func _on_interact() -> void:
 			hud.show_toast("DOCKED  •  REPAIRED  •  REARMED", 4.0)
 		if active_contract.get("type") == "QUALIFICATION" and int(Career.data.chapter_step) == 2 and nearest == star_system.dockables[0]:
 			_advance_chapter(Chapter.LICENSED)
+		if not Career.sandbox:
+			_open_board()
 
 
 func _on_player_destroyed() -> void:

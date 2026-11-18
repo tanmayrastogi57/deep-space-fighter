@@ -13,6 +13,10 @@ static func generate(mode: String, seed_value: int, completed_count: int = 0) ->
 	elif mode == "PATROL":
 		available.erase("ELIMINATION")
 	var kind: String = available[rng.randi_range(0, available.size() - 1)]
+	return make_job(kind, seed_value, completed_count)
+
+
+static func make_job(kind: String, seed_value: int, completed_count: int) -> Dictionary:
 	var tier := clampi(1 + completed_count / 3, 1, 5)
 	var target_count := 1
 	match kind:
@@ -35,6 +39,21 @@ static func generate(mode: String, seed_value: int, completed_count: int = 0) ->
 		"reward": 650 + tier * 350 + target_count * 110,
 		"tier": tier
 	}
+
+
+# Two inexhaustible local routes, plus one special contract with live targets.
+static func board(mode: String, seed_value: int, completed: int, supply: Dictionary) -> Array[Dictionary]:
+	var offers: Array[Dictionary] = [make_job("NAVIGATION", seed_value, completed), make_job("AEROBATICS", seed_value, completed)]
+	var specials: Array[Dictionary] = []
+	for kind in ["DISCOVERY", "COMET", "ESCORT", "ELIMINATION"]:
+		if kind == "ESCORT" and mode == "EXPLORER" or kind == "ELIMINATION" and mode != "WARZONE":
+			continue
+		var job := make_job(kind, seed_value, completed)
+		if int(supply.get(kind, 0)) >= int(job.target):
+			specials.append(job)
+	if not specials.is_empty():
+		offers.append(specials[posmod(seed_value + completed, specials.size())])
+	return offers
 
 
 static func record_progress(contract: Dictionary, event_type: String, amount: int = 1) -> bool:
@@ -67,7 +86,7 @@ static func _title_for(kind: String) -> String:
 		"AEROBATICS": "Flight qualification circuit",
 		"DISCOVERY": "Uncharted signal survey",
 		"COMET": "High-velocity comet intercept",
-		"ESCORT": "Civilian convoy escort",
+		"ESCORT": "CSV Resolute rendezvous",
 		"ELIMINATION": "Warzone fighter suppression"
 	}.get(kind, "Open contract")
 

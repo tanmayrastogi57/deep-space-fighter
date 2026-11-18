@@ -53,12 +53,28 @@ func _run() -> void:
 	world.fighter.landing_gear = true
 	world._on_interact()
 	_check(int(Career.data.chapter_step) == 3 and Career.data.credits == 3300, "Dock earns the licence and qualification payout")
+	_check(world.panel == "board" and world.paused, "Docking opens the station board safely")
+	world._operations_action("launch")
 	var overlook := world._objective_target()
 	_check(overlook != null and overlook.name == "Caligo Overlook", "Chapter has a named final destination")
 	world.fighter.global_position = overlook.global_position
 	world._process(0.016)
 	_check(int(Career.data.chapter_step) == 4 and world.active_contract.is_empty(), "Survey finishes the chapter without ending free roam")
 	_check(Career.load_career() and int(Career.data.chapter_step) == 4, "Chapter milestones survive a real reload")
+	world._open_board()
+	_check(world.board_offers.size() in [2,3], "Dock offers a choice of reachable jobs")
+	world._operations_action("job:1")
+	await get_tree().process_frame
+	_check(world.active_contract.get("type") == "AEROBATICS" and not world.paused, "Accepting a board offer starts the chosen route")
+	world._record_contract_event("AERO_RING")
+	var wallet: int = Career.data.credits
+	world._set_paused(true)
+	world._operations_action("abandon_prompt")
+	world._operations_action("cancel_abandon")
+	_check(int(world.active_contract.progress) == 1, "Cancelling abandonment retains partial progress")
+	world._operations_action("abandon_prompt")
+	world._operations_action("abandon")
+	_check(world.active_contract.is_empty() and Career.data.credits == wallet, "Abandon clears the partial job without charging credits")
 	world.queue_free()
 	await get_tree().process_frame
 	for suffix in ["", ".bak", ".tmp"]:

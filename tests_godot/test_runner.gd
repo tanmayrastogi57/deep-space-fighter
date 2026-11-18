@@ -70,6 +70,11 @@ func _test_flight_math() -> void:
 
 
 func _test_contracts() -> void:
+	for mode in ["EXPLORER", "PATROL", "WARZONE"]:
+		var empty_board := ContractSystem.board(mode, 42, 12, {})
+		_expect(empty_board.size() == 2, "%s has two guaranteed routes without fragile targets" % mode)
+		for job in ContractSystem.board(mode, 2, 12, {"ELIMINATION": 1, "DISCOVERY": 1, "COMET": 0}):
+			_expect(job.type in ["NAVIGATION","AEROBATICS"], "Depleted targets are never offered")
 	for seed_value in 30:
 		var explorer := ContractSystem.generate("EXPLORER", seed_value, seed_value)
 		_expect(str(explorer.type) not in ["ESCORT", "ELIMINATION"], "Explorer never generates combat contract")

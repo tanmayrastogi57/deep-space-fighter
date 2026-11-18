@@ -22,13 +22,21 @@ powershell -ExecutionPolicy Bypass -File .\run.ps1
 
 Alternatively, import `project.godot` into Godot 4.7.1 or newer and press `F5`.
 
+## Your first flight
+
+Choose **Start Guided Career**, pick any threat preset, and read the briefing. Nothing moves until you press **Launch Sortie**. Increase throttle to 20%, bank toward the **gold diamond** and fly through the Asteria training gate. Slow below 28 m/s, deploy gear and dock at the named **cyan station**. Qualification earns 800 credits and a survey licence. Chart Caligo Overlook for 1,100 more; you can keep flying after the chapter ends. Experienced pilots can skip qualification at preflight without the training payout.
+
+The HUD names the current task. Gold edge arrows show off-screen destinations and their distance; the radar distinguishes higher and lower contacts. **Esc** reopens the briefing, destination, control hints and last radio message. Dock to see available jobs. You can keep or abandon a partial assignment without losing earned credits.
+
+**Free Flight · No Save** is a separate practice sortie in any threat preset. It does not read career upgrades, assign work, or change the career or its backup. **Continue** resumes a saved career assignment.
+
 ## Game modes
 
 - **Explorer:** vistas, discoveries, aerobatic gates, meteors, and comet interception without hostile ships.
-- **Patrol:** Explorer activities plus drones, light fighters, rescue work, and moderate combat.
-- **Warzone:** heavier fighters, larger hostile groups, dangerous contracts, and escalating pursuit.
+- **Patrol:** four hostile fighters patrol the system alongside exploration and station work.
+- **Warzone:** eight hostiles, including three heavy fighters, and suppression jobs when enough targets are available.
 
-Each mode uses the same deterministic open world and persistent career. The hangar offers five levels across engine, thrusters, hull, shields, energy, cannon, missiles, and sensors.
+All three threat presets are available for career and practice. The career hangar shows chapter milestones and equipment upgrades.
 
 ## Flight controls
 
