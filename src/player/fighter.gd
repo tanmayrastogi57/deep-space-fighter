@@ -47,6 +47,7 @@ func _ready() -> void:
 	collision.rotation_degrees = Vector3(90, 0, 0)
 	add_child(collision)
 	model_parts = VisualFactory.build_fighter(self)
+	_update_engine_visuals()
 	_apply_upgrades()
 	camera_rig = FighterCameraRig.new()
 	get_parent().call_deferred("add_child", camera_rig)
@@ -277,7 +278,8 @@ func _apply_upgrades() -> void:
 func _update_engine_visuals() -> void:
 	for plume in model_parts.get("plumes", []):
 		if plume is Node3D:
-			plume.scale = Vector3(lerpf(0.62, 1.0, throttle), lerpf(0.62, 1.0, throttle), lerpf(0.45, 1.35, throttle))
+			var girth := lerpf(0.72, 1.0, throttle)
+			plume.scale = Vector3(girth, girth, lerpf(0.32, 2.4, throttle))
 
 
 func weapon_name() -> String:
