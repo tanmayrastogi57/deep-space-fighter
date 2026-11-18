@@ -138,7 +138,7 @@ func _build_home() -> void:
 	stack.add_child(subtitle)
 	stack.add_child(HSeparator.new())
 	if Career.has_career():
-		var task := str(Career.data.active_contract.get("title", "Asteria flight command"))
+		var task := str(Career.data.active_contract.get("title", "Dock for work"))
 		var continue_button := _button("CONTINUE: " + task.to_upper())
 		continue_button.pressed.connect(_show_modes.bind("continue"))
 		stack.add_child(continue_button)
@@ -187,7 +187,7 @@ func _build_mode_picker() -> void:
 	cards.add_theme_constant_override("separation", 16)
 	stack.add_child(cards)
 	_add_mode_card(cards, "EXPLORER", "NO HOSTILES", "Vistas, aerobatics, discoveries,\nmeteors and comet interception.", Color("#54d5eb"))
-	_add_mode_card(cards, "PATROL", "MODERATE THREAT", "Four hostile fighters patrol the system. Fly contracts or engage them.", Color("#f0c369"))
+	_add_mode_card(cards, "PATROL", "MODERATE THREAT", "Four hostile fighters patrol the system. Evade them or engage in combat.", Color("#f0c369"))
 	_add_mode_card(cards, "WARZONE", "SEVERE THREAT", "Eight hostiles, including three heavy fighters. Expect pursuit near enemy groups.", Color("#ff655c"))
 	var back := _button("BACK")
 	back.custom_minimum_size = Vector2(260, 50)

@@ -27,7 +27,7 @@ func _draw() -> void:
 	draw_polyline(ship, Color("#72e6ff"), 2.0, true)
 	if fighter == null or not is_instance_valid(fighter):
 		return
-	draw_string(ThemeDB.fallback_font, Vector2(0, size.y + 12), "650 m   ^ ABOVE   v BELOW", HORIZONTAL_ALIGNMENT_CENTER, size.x, 12, Color("#a5cfda"))
+	draw_string(ThemeDB.fallback_font, Vector2(0, size.y + 12), "%d m   ^ ABOVE   v BELOW" % int(range_meters), HORIZONTAL_ALIGNMENT_CENTER, size.x, 13, Color("#a5cfda"))
 	for hostile in get_tree().get_nodes_in_group("hostile"):
 		if hostile is not Node3D:
 			continue
@@ -62,3 +62,5 @@ func _altitude(pos: Vector2, height: float, color: Color) -> void:
 	var sign_y := -signf(height)
 	var p := pos + Vector2(0, 8 * sign_y)
 	draw_polyline(PackedVector2Array([p + Vector2(-3, 0), p + Vector2(0, 4 * sign_y), p + Vector2(3, 0)]), color, 1.5)
+	if pos.distance_to(size * 0.5) < 12.0:
+		draw_string(ThemeDB.fallback_font, p + Vector2(8, 3), "%+d m" % roundi(height), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, color)

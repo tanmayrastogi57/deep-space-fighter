@@ -15,10 +15,11 @@ func _ready() -> void:
 
 
 func _show_menu(open_settings: bool = false) -> void:
-	Career.end_sandbox()
 	if game_world != null and is_instance_valid(game_world):
+		remove_child(game_world)
 		game_world.queue_free()
 		game_world = null
+	Career.end_sandbox()
 	menu = MainMenuScript.new()
 	menu.start_requested.connect(_start_game)
 	menu.quit_requested.connect(_quit)

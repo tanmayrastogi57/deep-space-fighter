@@ -80,7 +80,7 @@ func _preflight() -> void:
 	hud.pause_overlay.hide()
 	var text := "%s preset. Flight is on hold until you launch.\n\n" % mode.capitalize()
 	text += str(active_contract.get("description", "No assignment. Explore freely.")) + "\n\n"
-	text += "Gold diamond: destination. Cyan square: dock.\n%s / %s: throttle. %s / %s: bank. Mouse: look. Esc: flight log." % [InputSetup.key_hint("throttle_up"), InputSetup.key_hint("throttle_down"), InputSetup.key_hint("roll_left"), InputSetup.key_hint("roll_right")]
+	text += "Gold diamond: destination. Cyan square: dock.\n" + InputSetup.flight_hints()
 	var actions := {"launch": "LAUNCH SORTIE"}
 	if active_contract.get("type") == "QUALIFICATION":
 		actions.skip = "SKIP QUALIFICATION · Experienced pilot"
@@ -314,6 +314,8 @@ func _prepare_contract() -> void:
 
 
 func _build_objective_markers() -> void:
+	if not is_inside_tree() or is_queued_for_deletion():
+		return
 	if objective_root != null and is_instance_valid(objective_root):
 		objective_root.queue_free()
 	objective_root = Node3D.new()

@@ -101,7 +101,8 @@ func set_destination(target: Node3D, caption: String) -> void:
 func set_paused(value: bool) -> void:
 	if value:
 		abandon_button.visible = not contract.is_empty() and not Career.sandbox
-		log_label.text = "FLIGHT LOG\n%s\nDestination: %s\n%s / %s throttle · %s / %s bank · %s gear · %s dock\nLast radio: %s" % [contract.get("description", "Explore at your own pace."), destination if destination != "" else "None assigned", InputSetup.key_hint("throttle_up"), InputSetup.key_hint("throttle_down"), InputSetup.key_hint("roll_left"), InputSetup.key_hint("roll_right"), InputSetup.key_hint("toggle_gear"), InputSetup.key_hint("interact"), recent_radio]
+		var fallback := "Explore at your own pace." if Career.sandbox else "Dock at the marked station to choose work."
+		log_label.text = "FLIGHT LOG\n%s\nDestination: %s\n%s\nLast radio: %s" % [contract.get("description", fallback), destination if destination != "" else "None assigned", InputSetup.flight_hints(), recent_radio]
 	pause_overlay.visible = value
 	if not value and pause_settings_overlay:
 		pause_settings_overlay.visible = false

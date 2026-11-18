@@ -51,6 +51,13 @@ static func key_hint(action: StringName) -> String:
 	return str(action)
 
 
+static func flight_hints() -> String:
+	return "%s / %s throttle · %s / %s bank · %s / %s pitch · %s / %s yaw\n%s gear · %s dock · Mouse looks around · Esc opens the flight log" % [
+		key_hint("throttle_up"), key_hint("throttle_down"), key_hint("roll_left"), key_hint("roll_right"),
+		key_hint("pitch_down"), key_hint("pitch_up"), key_hint("yaw_left"), key_hint("yaw_right"),
+		key_hint("toggle_gear"), key_hint("interact")]
+
+
 static func _add_key(action: StringName, keycode: Key) -> void:
 	if not InputMap.has_action(action):
 		InputMap.add_action(action)

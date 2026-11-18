@@ -16,14 +16,29 @@ func _capture() -> void:
 	var world := GameWorld.new()
 	world.configure("PATROL", true)
 	add_child(world)
+	await RenderingServer.frame_post_draw
+	var result := get_viewport().get_texture().get_image().save_png("res://.godot/preflight_capture.png")
+	world._operations_action("launch")
 	for _frame in 40:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()
-	var result := image.save_png(CAPTURE_PATH)
+	if result == OK:
+		result = image.save_png(CAPTURE_PATH)
+	world._set_paused(true)
+	await RenderingServer.frame_post_draw
+	if result == OK:
+		result = get_viewport().get_texture().get_image().save_png("res://.godot/log_capture.png")
+	world._set_assignment({})
+	world._open_board()
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	if result == OK:
+		result = get_viewport().get_texture().get_image().save_png("res://.godot/jobs_capture.png")
 	if result != OK:
 		push_error("Could not save visual smoke capture: %s" % error_string(result))
 	world.queue_free()
+	Sound.shutdown()
 	await get_tree().process_frame
 	for suffix in ["", ".bak", ".tmp"]:
 		var candidate := ProjectSettings.globalize_path(TEST_SAVE_PATH + suffix)

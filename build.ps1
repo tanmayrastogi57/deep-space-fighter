@@ -23,15 +23,17 @@ if ($parseOutput -match "SCRIPT ERROR|Failed to load script") {
     throw "Godot script validation failed."
 }
 
-& $godotCommand --headless --path $projectRoot res://tests_godot/test_runner.tscn
-if ($LASTEXITCODE -ne 0) {
-    throw "Deterministic tests failed."
+function Invoke-FlightTest([string]$scene) {
+    $result = & $godotCommand --headless --path $projectRoot --quit-after 1800 $scene 2>&1 | Out-String
+    $result | Write-Host
+    if ($LASTEXITCODE -ne 0 -or $result -match "SCRIPT ERROR|(?m)^ERROR:" -or $result -notmatch "(?m)^PASS:") {
+        throw "Godot test failed or did not finish: $scene"
+    }
 }
 
-& $godotCommand --headless --path $projectRoot res://tests_godot/smoke_test.tscn
-if ($LASTEXITCODE -ne 0) {
-    throw "3D scene smoke test failed."
-}
+Invoke-FlightTest "res://tests_godot/test_runner.tscn"
+Invoke-FlightTest "res://tests_godot/smoke_test.tscn"
+Invoke-FlightTest "res://tests_godot/menu_flow.tscn"
 
 $outputDirectory = Join-Path $projectRoot "dist\Deep Space Fighter"
 New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
